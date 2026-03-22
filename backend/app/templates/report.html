@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>{{ pathway_name }} — Co-expression Report</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Times New Roman", Times, serif; font-size: 11pt; max-width: 860px; margin: 0 auto; padding: 40px 60px; color: #111; }
+  h1 { font-size: 18pt; text-align: center; margin-bottom: 6px; }
+  .meta { text-align: center; color: #555; font-size: 9pt; margin-bottom: 24px; }
+  h2 { font-size: 13pt; margin-top: 28px; margin-bottom: 8px; border-bottom: 1px solid #ccc; padding-bottom: 3px; }
+  h3 { font-size: 11pt; margin-top: 16px; margin-bottom: 6px; }
+  p { margin-bottom: 10px; line-height: 1.5; text-align: justify; }
+  .abstract { background: #f9f9f9; border-left: 4px solid #555; padding: 12px 16px; margin-bottom: 20px; font-size: 10pt; }
+  figure { margin: 20px 0; text-align: center; }
+  figure img { max-width: 100%; border: 1px solid #ddd; }
+  figcaption { font-size: 9pt; color: #444; margin-top: 6px; font-style: italic; }
+  .stats-table { width: 100%; border-collapse: collapse; font-size: 9pt; margin-top: 8px; }
+  .stats-table th, .stats-table td { border: 1px solid #ccc; padding: 4px 8px; text-align: right; }
+  .stats-table th { background: #eee; text-align: center; }
+  .stats-table tr:nth-child(even) { background: #f9f9f9; }
+  .pairs-table { width: 60%; border-collapse: collapse; font-size: 9pt; margin: 8px 0; }
+  .pairs-table th, .pairs-table td { border: 1px solid #ccc; padding: 3px 8px; }
+  .pairs-table th { background: #eee; }
+  .score-box { display: inline-block; background: #1a6b3c; color: #fff; padding: 6px 18px; border-radius: 4px; font-size: 14pt; font-weight: bold; }
+  .gene-list { font-family: monospace; font-size: 9pt; word-break: break-all; }
+  .not-found { color: #c0392b; }
+  .references p { font-size: 9pt; padding-left: 1.5em; text-indent: -1.5em; }
+  @media print { body { padding: 20px; } }
+</style>
+</head>
+<body>
+
+<h1>Co-expression Analysis: {{ pathway_name }}</h1>
+<p class="meta">
+  Dataset: {{ dataset_info }} &nbsp;|&nbsp; Analysis date: {{ analysis_date }} &nbsp;|&nbsp;
+  Genes analyzed: {{ genes_found | length }} / {{ (genes_found | length) + (genes_not_found | length) }}
+</p>
+
+<div class="abstract">
+  <strong>Abstract.</strong>
+  We assessed the transcriptional coherence of the <em>{{ pathway_name }}</em> gene set by examining
+  median mRNA expression across tissues from {{ dataset_info }}.
+  Of {{ (genes_found | length) + (genes_not_found | length) }} pathway genes,
+  {{ genes_found | length }} were identified in the dataset.
+  The pathway coherence score (mean pairwise Pearson correlation on log₂(TPM+1) values across tissues)
+  was <strong>{{ consistency_score }}</strong>.
+  [Expand with key findings from the results section.]
+</div>
+
+<h2>Introduction</h2>
+<p>[Introduce the biological context of the {{ pathway_name }} pathway and the rationale for assessing co-expression in healthy tissue.]</p>
+
+{% if include_methods %}
+<h2>Methods</h2>
+<h3>Gene Sets</h3>
+<p>Gene sets were obtained from the Molecular Signatures Database (MSigDB) via gseapy (v1.1). The <em>{{ pathway_name }}</em> gene set was used as input for all downstream analyses.</p>
+<h3>Expression Data</h3>
+<p>Median transcript per million (TPM) expression values were retrieved from {{ dataset_info }} via the GTEx Portal REST API (gtexportal.org/api/v2). Gene symbols were resolved to versioned GENCODE v26 identifiers using the GTEx /reference/gene endpoint. Only genes with confirmed GTEx entries were included in the analysis.</p>
+<h3>Co-expression Analysis</h3>
+<p>Expression values were log₂(TPM+1) transformed prior to analysis. Pairwise Pearson correlations were computed across all available GTEx tissues. Pathway coherence was summarized as the mean of all upper-triangle pairwise correlation values, yielding a score between −1 (anti-correlated) and +1 (perfectly co-expressed). Principal component analysis (PCA) was performed on the log-transformed expression matrix with genes as observations and tissues as features using scikit-learn.</p>
+{% endif %}
+
+<h2>Results</h2>
+
+<h3>Pathway Coherence</h3>
+<p>
+  Pathway consistency score: <span class="score-box">{{ consistency_score }}</span>
+  &nbsp; (mean pairwise Pearson r across {{ genes_found | length }} genes × all tissues)
+</p>
+
+<h3>Expression Heatmap</h3>
+<figure>
+  <img src="data:image/png;base64,{{ expr_img }}" alt="Expression heatmap">
+  <figcaption>Figure 1. Median gene expression (log₂ TPM+1) for {{ pathway_name }} genes across GTEx tissues. Color scale: viridis (dark = low, bright = high).</figcaption>
+</figure>
+
+<h3>Co-expression Correlation Matrix</h3>
+<figure>
+  <img src="data:image/png;base64,{{ corr_img }}" alt="Correlation heatmap">
+  <figcaption>Figure 2. Pairwise Pearson correlation between {{ pathway_name }} genes based on log₂(TPM+1) expression across GTEx tissues. Color scale: red = positive correlation, blue = negative correlation.</figcaption>
+</figure>
+
+{% if pca_img %}
+<h3>PCA of Gene Expression</h3>
+<figure>
+  <img src="data:image/png;base64,{{ pca_img }}" alt="PCA scatter plot">
+  <figcaption>Figure 3. PCA of gene expression profiles across GTEx tissues.
+    {% if pca_variance %}PC1 explains {{ "%.1f"|format(pca_variance[0]*100) }}%,
+    PC2 explains {{ "%.1f"|format(pca_variance[1]*100) }}% of variance.{% endif %}
+  </figcaption>
+</figure>
+{% endif %}
+
+<h3>Top Co-expressed Gene Pairs</h3>
+<table class="pairs-table">
+  <tr><th>Gene A</th><th>Gene B</th><th>Pearson r</th></tr>
+  {% for pair in top_pairs %}
+  <tr><td>{{ pair.gene_a }}</td><td>{{ pair.gene_b }}</td><td>{{ pair.pearson_r }}</td></tr>
+  {% endfor %}
+</table>
+
+<h3>Per-gene Summary Statistics</h3>
+{{ stats_table }}
+
+<h3>Gene Coverage</h3>
+<p><strong>Genes analyzed ({{ genes_found | length }}):</strong>
+  <span class="gene-list">{{ genes_found | join(", ") }}</span>
+</p>
+{% if genes_not_found %}
+<p><strong class="not-found">Genes not found in {{ dataset_info }} ({{ genes_not_found | length }}):</strong>
+  <span class="gene-list not-found">{{ genes_not_found | join(", ") }}</span>
+</p>
+{% endif %}
+
+<h2>Discussion</h2>
+<p>[Interpret the co-expression patterns in the context of {{ pathway_name }} biology. Discuss which tissues show highest concordant expression, any outlier genes, and potential implications for pathway coherence in vivo.]</p>
+
+<h2>References</h2>
+<div class="references">
+<p>GTEx Consortium. The GTEx Consortium atlas of genetic regulatory effects across human tissues. <em>Science</em> 369, 1318–1330 (2020).</p>
+<p>Liberzon A, et al. The Molecular Signatures Database Hallmark Gene Set Collection. <em>Cell Syst</em> 1, 417–425 (2015).</p>
+<p>Fang Z, et al. GSEApy: a comprehensive package for performing gene set enrichment analysis in Python. <em>Bioinformatics</em> 39, btac757 (2023).</p>
+</div>
+
+</body>
+</html>
