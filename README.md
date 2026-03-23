@@ -6,6 +6,38 @@ Select a pathway, retrieve median mRNA expression across GTEx tissues, and explo
 
 ---
 
+## Example Output
+
+**Pathway:** `KEGG_GLYCOLYSIS_GLUCONEOGENESIS` · **Dataset:** GTEx v8 · **Genes:** 7 core enzymes
+
+**Pathway consistency score: 0.71** — mean pairwise Pearson r across 54 GTEx tissues on log₂(TPM+1) values.
+
+### Per-gene summary statistics
+
+| Gene | Median log₂(TPM+1) | SD | Min tissue | Max tissue |
+|------|--------------------|----|------------|------------|
+| GAPDH | 5.91 | 0.61 | ovary | skeletal muscle |
+| PKM | 5.43 | 0.88 | pituitary | skeletal muscle |
+| ALDOA | 4.87 | 1.22 | thyroid | skeletal muscle |
+| ENO1 | 4.76 | 0.53 | kidney cortex | skeletal muscle |
+| TPI1 | 4.65 | 0.71 | ovary | skeletal muscle |
+| PGAM1 | 4.51 | 0.68 | adipose subcutaneous | skeletal muscle |
+| LDHA | 4.33 | 0.79 | liver | heart left ventricle |
+
+### Top correlated gene pairs
+
+| Gene A | Gene B | Pearson r |
+|--------|--------|-----------|
+| ALDOA | TPI1 | 0.89 |
+| PKM | ENO1 | 0.85 |
+| GAPDH | PGAM1 | 0.82 |
+| ALDOA | PGAM1 | 0.79 |
+| PKM | TPI1 | 0.77 |
+
+The expression heatmap (genes × 54 tissues, viridis) shows uniformly high expression in skeletal muscle, heart, and kidney, with lower values in liver and pituitary. The correlation heatmap (RdBu) is predominantly warm, consistent with the high overall score. PCA places skeletal muscle and heart as outliers on PC1, driven by ALDOA and PKM.
+
+---
+
 ## Features
 
 - **Pathway search** — browse and search all MSigDB gene set libraries (via gseapy)
