@@ -24,6 +24,12 @@ async def analyze(request: ExpressionRequest) -> AnalysisResponse:
     Fetch GTEx median expression for a gene list, then run co-expression analysis.
     This is the primary endpoint the frontend calls after selecting a pathway.
     """
+    if request.dataset_id not in gtex.GENCODE_VERSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported dataset '{request.dataset_id}'. "
+            f"Supported: {', '.join(sorted(gtex.GENCODE_VERSIONS))}",
+        )
     if not request.genes:
         raise HTTPException(status_code=400, detail="Gene list cannot be empty")
 
@@ -49,6 +55,15 @@ async def analyze(request: ExpressionRequest) -> AnalysisResponse:
         raise HTTPException(
             status_code=404,
             detail="No GTEx expression data found for any of the provided genes.",
+        )
+
+    if len(matrix) < 2:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Co-expression needs at least 2 genes with GTEx data; "
+                f"only {len(matrix)} found ({', '.join(matrix)})."
+            ),
         )
 
     all_tissue_keys: set[str] = set()

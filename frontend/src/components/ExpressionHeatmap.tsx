@@ -27,7 +27,7 @@ export function ExpressionHeatmap({ expression }: Props) {
             x: tissues,
             y: genes_found,
             colorscale: "Viridis",
-            colorbar: { title: "log₂(TPM+1)", thickness: 15 },
+            colorbar: { title: { text: "log₂(TPM+1)" }, thickness: 15 },
             hoverongaps: false,
           },
         ]}

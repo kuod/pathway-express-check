@@ -47,7 +47,7 @@ if ! $FORCE; then
   printf "  %-50s %s\n" "frontend/dist"                                "$(kb_hr $KB_dist)"
   printf "  %-50s %s\n" "backend/.pytest_cache, htmlcov, .coverage"    "$(kb_hr $KB_pytest)"
   printf "  %-50s %s\n" "backend/**/__pycache__ (and *.pyc)"           "$(kb_hr $KB_pyc)"
-  printf "  %-50s %s\n" "backend/app/data/gtex_gene_cache.json → {}"  "$(kb_hr $KB_cache)"
+  printf "  %-50s %s\n" "backend/app/data/gtex_gene_cache.json (restore from git)" "$(kb_hr $KB_cache)"
   echo ""
   echo "Total storage reclaimed: $(kb_hr $total_kb)"
   echo ""
@@ -66,7 +66,10 @@ rm -rf backend/.pytest_cache backend/htmlcov backend/.coverage
 
 rm -rf frontend/node_modules frontend/dist
 
-echo "{}" > backend/app/data/gtex_gene_cache.json
+# The cache is a git-tracked, shipped data file: restore it rather than wiping it.
+# (Only newly resolved, untracked write-backs are lost.)
+git checkout -- backend/app/data/gtex_gene_cache.json 2>/dev/null \
+  || echo "Note: could not restore gtex_gene_cache.json from git; left unchanged."
 
 echo "Done."
 echo ""

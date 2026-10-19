@@ -12,7 +12,7 @@ interface Props {
 const EXPORTS = [
   { fmt: "html" as const, label: "HTML Preprint", desc: "Printable academic report with embedded figures" },
   { fmt: "docx" as const, label: "Word Document", desc: "Editable .docx preprint template" },
-  { fmt: "figures" as const, label: "Figures (ZIP)", desc: "High-res PNG figures (300 dpi)" },
+  { fmt: "figures" as const, label: "Figures (ZIP)", desc: "High-res PNG figures (150 dpi)" },
   { fmt: "csv" as const, label: "Data (Excel)", desc: "Expression matrix, correlations, and stats" },
 ];
 

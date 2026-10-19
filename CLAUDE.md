@@ -51,7 +51,12 @@ cd frontend
 npm install
 npm run dev        # starts on http://localhost:5173
 npm run build      # production build to dist/
-npm run lint       # ESLint
+npm run lint       # ESLint 9 flat config (eslint.config.js)
+```
+
+### Tests
+```bash
+cd backend && pip install -r requirements-dev.txt && pytest tests/ -v
 ```
 
 ### Docker (both services)
@@ -64,7 +69,9 @@ docker compose up --build
 - **GTEx Portal v2**: `https://gtexportal.org/api/v2` — no auth required; rate limits are generous but large gene sets (>100 genes) may take 20–40 s
   - `/reference/gene?geneId=<SYMBOL>` — resolve symbol → versioned gencodeId
   - `/expression/medianGeneExpression?datasetId=gtex_v8&gencodeId=<IDs>` — batch up to ~20 IDs per request
-  - `/dataset/tissueInfo?datasetId=gtex_v8` — tissue metadata
+  - `/dataset/tissueSiteDetail` — tissue metadata
+  - Responses are paginated (250 rows/page by default); the client requests `itemsPerPage=2000` and follows `paging_info.numberOfPages`
+  - Gene IDs are GENCODE-version specific: gtex_v8 → v26 (cached on disk), gtex_v10 → v39 (not cached)
 - **MSigDB via gseapy**: `gp.get_library_name()` / `gp.get_library(name, organism)` — downloads from Broad on first call, then cached in-process
 
 ## Notable design decisions
