@@ -26,27 +26,28 @@ kb_hr() {
   fi
 }
 
-mapfile -d '' PYCACHE_DIRS < <(find backend -type d -name "__pycache__" -print0 2>/dev/null)
-mapfile -d '' PYCS        < <(find backend -name "*.pyc" -print0 2>/dev/null)
+PYCACHE_DIRS=()
+while IFS= read -r -d '' p; do PYCACHE_DIRS+=("$p"); done < <(find backend -type d -name "__pycache__" -print0 2>/dev/null)
+PYCS=()
+while IFS= read -r -d '' p; do PYCS+=("$p"); done < <(find backend -name "*.pyc" -print0 2>/dev/null)
 
-declare -A ITEM_KB
-ITEM_KB[venv]=$(kb_of backend/.venv)
-ITEM_KB[node]=$(kb_of frontend/node_modules)
-ITEM_KB[dist]=$(kb_of frontend/dist)
-ITEM_KB[pytest]=$(kb_of backend/.pytest_cache backend/htmlcov backend/.coverage)
-ITEM_KB[pyc]=$(kb_of "${PYCACHE_DIRS[@]}" "${PYCS[@]}")
-ITEM_KB[cache]=$(kb_of backend/app/data/gtex_gene_cache.json)
+KB_venv=$(kb_of backend/.venv)
+KB_node=$(kb_of frontend/node_modules)
+KB_dist=$(kb_of frontend/dist)
+KB_pytest=$(kb_of backend/.pytest_cache backend/htmlcov backend/.coverage)
+KB_pyc=$(kb_of "${PYCACHE_DIRS[@]}" "${PYCS[@]}")
+KB_cache=$(kb_of backend/app/data/gtex_gene_cache.json)
 
-total_kb=$(( ITEM_KB[venv] + ITEM_KB[node] + ITEM_KB[dist] + ITEM_KB[pytest] + ITEM_KB[pyc] + ITEM_KB[cache] ))
+total_kb=$(( KB_venv + KB_node + KB_dist + KB_pytest + KB_pyc + KB_cache ))
 
 if ! $FORCE; then
   echo "Dry run — would remove:"
-  printf "  %-50s %s\n" "backend/.venv"                                "$(kb_hr ${ITEM_KB[venv]})"
-  printf "  %-50s %s\n" "frontend/node_modules"                        "$(kb_hr ${ITEM_KB[node]})"
-  printf "  %-50s %s\n" "frontend/dist"                                "$(kb_hr ${ITEM_KB[dist]})"
-  printf "  %-50s %s\n" "backend/.pytest_cache, htmlcov, .coverage"    "$(kb_hr ${ITEM_KB[pytest]})"
-  printf "  %-50s %s\n" "backend/**/__pycache__ (and *.pyc)"           "$(kb_hr ${ITEM_KB[pyc]})"
-  printf "  %-50s %s\n" "backend/app/data/gtex_gene_cache.json → {}"  "$(kb_hr ${ITEM_KB[cache]})"
+  printf "  %-50s %s\n" "backend/.venv"                                "$(kb_hr $KB_venv)"
+  printf "  %-50s %s\n" "frontend/node_modules"                        "$(kb_hr $KB_node)"
+  printf "  %-50s %s\n" "frontend/dist"                                "$(kb_hr $KB_dist)"
+  printf "  %-50s %s\n" "backend/.pytest_cache, htmlcov, .coverage"    "$(kb_hr $KB_pytest)"
+  printf "  %-50s %s\n" "backend/**/__pycache__ (and *.pyc)"           "$(kb_hr $KB_pyc)"
+  printf "  %-50s %s\n" "backend/app/data/gtex_gene_cache.json → {}"  "$(kb_hr $KB_cache)"
   echo ""
   echo "Total storage reclaimed: $(kb_hr $total_kb)"
   echo ""
