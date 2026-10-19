@@ -9,9 +9,7 @@ import re
 import zipfile
 from datetime import date
 
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -46,7 +44,8 @@ def _safe_filename(name: str, suffix: str) -> str:
 def _expression_heatmap_png(expression_matrix: dict, figsize=(14, 8)) -> bytes:
     df = build_dataframe(expression_matrix)
     log_df = np.log2(df + 1)
-    fig, ax = plt.subplots(figsize=figsize)
+    fig = Figure(figsize=figsize)
+    ax = fig.subplots()
     sns.heatmap(
         log_df,
         cmap="viridis",
@@ -58,18 +57,18 @@ def _expression_heatmap_png(expression_matrix: dict, figsize=(14, 8)) -> bytes:
     ax.set_title("Median Gene Expression Across GTEx Tissues")
     ax.set_xlabel("Tissue")
     ax.set_ylabel("Gene")
-    plt.xticks(rotation=90, fontsize=6)
-    plt.yticks(fontsize=7)
-    plt.tight_layout()
+    ax.tick_params(axis="x", labelrotation=90, labelsize=6)
+    ax.tick_params(axis="y", labelsize=7)
+    fig.tight_layout()
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=150)
-    plt.close(fig)
     return buf.getvalue()
 
 
 def _correlation_heatmap_png(correlation_matrix: dict, figsize=(10, 8)) -> bytes:
     corr_df = pd.DataFrame(correlation_matrix)
-    fig, ax = plt.subplots(figsize=figsize)
+    fig = Figure(figsize=figsize)
+    ax = fig.subplots()
     mask = np.triu(np.ones_like(corr_df, dtype=bool))
     sns.heatmap(
         corr_df,
@@ -85,12 +84,13 @@ def _correlation_heatmap_png(correlation_matrix: dict, figsize=(10, 8)) -> bytes
         yticklabels=True,
     )
     ax.set_title("Gene Co-expression Correlation Matrix")
-    plt.xticks(rotation=45, ha="right", fontsize=7)
-    plt.yticks(fontsize=7)
-    plt.tight_layout()
+    ax.tick_params(axis="x", labelrotation=45, labelsize=7)
+    for lbl in ax.get_xticklabels():
+        lbl.set_ha("right")
+    ax.tick_params(axis="y", labelsize=7)
+    fig.tight_layout()
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=150)
-    plt.close(fig)
     return buf.getvalue()
 
 
@@ -100,17 +100,17 @@ def _pca_scatter_png(pca_coords: dict, figsize=(7, 6)) -> bytes:
     genes = list(pca_coords.keys())
     xs = [pca_coords[g][0] for g in genes]
     ys = [pca_coords[g][1] for g in genes]
-    fig, ax = plt.subplots(figsize=figsize)
+    fig = Figure(figsize=figsize)
+    ax = fig.subplots()
     ax.scatter(xs, ys, s=60, alpha=0.8)
     for gene, x, y in zip(genes, xs, ys):
         ax.annotate(gene, (x, y), textcoords="offset points", xytext=(4, 4), fontsize=7)
     ax.set_xlabel("PC1")
     ax.set_ylabel("PC2")
     ax.set_title("PCA of Gene Expression Across Tissues")
-    plt.tight_layout()
+    fig.tight_layout()
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=150)
-    plt.close(fig)
     return buf.getvalue()
 
 

@@ -42,15 +42,20 @@ export const runAnalysis = (
   genes: string[],
   pathwayName: string,
   datasetId = "gtex_v8",
-  tissueIds?: string[]
+  tissueIds?: string[],
+  signal?: AbortSignal
 ): Promise<AnalysisResponse> =>
   api
-    .post<AnalysisResponse>("/expression/analyze", {
-      genes,
-      pathway_name: pathwayName,
-      dataset_id: datasetId,
-      tissue_ids: tissueIds ?? null,
-    })
+    .post<AnalysisResponse>(
+      "/expression/analyze",
+      {
+        genes,
+        pathway_name: pathwayName,
+        dataset_id: datasetId,
+        tissue_ids: tissueIds ?? null,
+      },
+      { signal }
+    )
     .then((r) => r.data);
 
 // Reports

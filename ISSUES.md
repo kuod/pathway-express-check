@@ -106,7 +106,9 @@ Baseline evidence: `pytest` (23 tests, all gtex.py) passed on Python 3.13; `npm 
 - `reports.py` uses global `matplotlib.pyplot` state from sync endpoints that run in a thread pool: concurrent exports can interleave figures. Proposed: use `matplotlib.figure.Figure` objects directly.
 - `gene_cache.put` rewrites the whole (potentially 3 MB) JSON file synchronously, inside the event loop, once per newly resolved symbol; and it writes into the git-tracked data file. Proposed: batch flush / write to a separate untracked file.
 - Frontend: results from an in-flight analysis can land after the user selected a different pathway (mutation reads state at call time, sets `result` unconditionally).
-- Status: open
+- Fix: report figures now use `matplotlib.figure.Figure` (no pyplot global state); `gene_cache.put` is in-memory only and `gene_cache.flush()` writes once per `resolve_genes` batch, atomically (temp file + `os.replace`) and off the event loop via `asyncio.to_thread`; frontend aborts the in-flight request (AbortController) and ignores stale responses via a run id whenever library/pathway/dataset changes or a new run starts. Tests: `test_gene_cache.py`, threaded figure test in `test_reports.py`.
+- Not done: cache still writes the git-tracked data file (separate untracked file not adopted; would change deployment behaviour). No frontend test runner exists, so the stale-response guard is verified by build/lint only.
+- Status: fixed
 
 ## #21 enhancement: dependency drift and vulnerabilities
 - `npm audit --omit=dev`: 14 vulnerabilities (2 critical, 8 high) from the plotly.js / transitive tree. Python deps use open `>=` ranges with no lockfile (numpy>=2, pandas>=2.2, gseapy>=1.1.12), Docker uses Python 3.11 while local runs were on 3.13.

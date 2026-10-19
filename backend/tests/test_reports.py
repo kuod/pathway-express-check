@@ -63,3 +63,19 @@ def test_figures_zip():
     r = client.post("/api/reports/figures/zip", json=_payload())
     assert r.status_code == 200
     assert r.content[:2] == b"PK"
+
+
+def test_figure_helpers_threadsafe_and_leave_no_pyplot_figures():
+    from concurrent.futures import ThreadPoolExecutor
+    import matplotlib.pyplot as plt
+    from app.routers.reports import _correlation_heatmap_png, _expression_heatmap_png
+
+    p = _payload()
+    expr = p["expression"]["expression_matrix"]
+    corr = p["coexpression"]["correlation_matrix"]
+    with ThreadPoolExecutor(8) as ex:
+        futs = [ex.submit(_expression_heatmap_png if i % 2 else _correlation_heatmap_png,
+                          expr if i % 2 else corr) for i in range(16)]
+        outs = [f.result() for f in futs]
+    assert all(o.startswith(b"\x89PNG") for o in outs)
+    assert plt.get_fignums() == []

@@ -80,7 +80,7 @@ async def resolve_genes(
                     gid = genes[0].get("gencodeId")
                     results[symbol] = gid
                     if gid and use_cache:
-                        gene_cache.put(symbol, gid)  # write-back
+                        gene_cache.put(symbol, gid)  # in-memory; flushed once below
                 else:
                     results[symbol] = None
             except Exception as exc:
@@ -90,6 +90,10 @@ async def resolve_genes(
     logger.info("Resolving %d gene symbols via GTEx API…", len(uncached))
     async with httpx.AsyncClient() as client:
         await asyncio.gather(*[fetch_one(client, s) for s in uncached])
+
+    if use_cache:
+        # One batched, atomic write, off the event loop.
+        await asyncio.to_thread(gene_cache.flush)
 
     found = sum(1 for v in results.values() if v)
     logger.info("Gene resolution complete: %d/%d symbols matched", found, len(symbols))
