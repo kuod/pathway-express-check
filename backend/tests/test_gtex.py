@@ -487,3 +487,16 @@ class TestDatasetGencodeVersion:
             MockClient.return_value.__aenter__.return_value.get = mock_get
             await gtex.resolve_genes(["TP53"], "gtex_v10")
         assert shared == {}
+
+
+# ---------------------------------------------------------------------------
+# ISSUES.md #4: total failure must not look like "no data"
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_all_batches_failing_raises():
+    mock_get = AsyncMock(return_value=_mock_response({"detail": "bad"}, status_code=422))
+    with patch("httpx.AsyncClient") as MockClient:
+        MockClient.return_value.__aenter__.return_value.get = mock_get
+        with pytest.raises(RuntimeError, match="expression requests failed"):
+            await gtex.fetch_median_expression(["ENSG00000141510.16"])

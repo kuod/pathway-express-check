@@ -107,6 +107,7 @@ async def fetch_median_expression(
       [{gencodeId, geneSymbol, tissueSiteDetailId, median, unit}, ...]
     """
     all_records: list[dict] = []
+    failures: list[Exception] = []
 
     async def fetch_batch(client: httpx.AsyncClient, batch: list[str]):
         params: dict = {
@@ -133,6 +134,7 @@ async def fetch_median_expression(
                     break
         except Exception as exc:
             logger.warning("Expression batch fetch failed for %d IDs: %s", len(batch), exc)
+            failures.append(exc)
 
     batches = [
         gencode_ids[i : i + _GENE_BATCH_SIZE]
@@ -152,6 +154,13 @@ async def fetch_median_expression(
     async with httpx.AsyncClient() as client:
         await asyncio.gather(*[fetch_batch_logged(client, b, i) for i, b in enumerate(batches)])
 
+    if batches and len(failures) == len(batches):
+        # Every request failed: surface the cause instead of reporting "no data".
+        raise RuntimeError(f"all {len(batches)} expression requests failed: {failures[0]}")
+    if failures:
+        logger.warning(
+            "%d/%d expression batches failed; result is partial", len(failures), len(batches)
+        )
     return all_records
 
 
