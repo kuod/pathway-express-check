@@ -5,6 +5,7 @@ Supports HTML (printable preprint), DOCX, and CSV/Excel data exports.
 
 import base64
 import io
+import re
 import zipfile
 from datetime import date
 
@@ -30,6 +31,12 @@ _JINJA_ENV = Environment(
     loader=FileSystemLoader(str(Path(__file__).parent.parent / "templates")),
     autoescape=select_autoescape(["html"]),
 )
+
+
+def _safe_filename(name: str, suffix: str) -> str:
+    """Make *name* safe for a Content-Disposition header (no quotes, CR/LF, non-ASCII)."""
+    stem = re.sub(r"[^A-Za-z0-9._-]+", "_", name).strip("._") or "report"
+    return stem[:100] + suffix
 
 
 # ---------------------------------------------------------------------------
@@ -230,7 +237,7 @@ def generate_docx_report(req: ReportRequest):
     buf = io.BytesIO()
     doc.save(buf)
     buf.seek(0)
-    filename = req.pathway_name.replace(" ", "_") + "_coexpression_report.docx"
+    filename = _safe_filename(req.pathway_name, "_coexpression_report.docx")
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -273,7 +280,7 @@ def download_csv(req: ReportRequest):
         corr_df = pd.DataFrame(req.coexpression.correlation_matrix)
         corr_df.to_excel(writer, sheet_name="Correlation_Matrix")
     buf.seek(0)
-    filename = req.pathway_name.replace(" ", "_") + "_expression_data.xlsx"
+    filename = _safe_filename(req.pathway_name, "_expression_data.xlsx")
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
