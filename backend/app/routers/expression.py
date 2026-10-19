@@ -57,6 +57,15 @@ async def analyze(request: ExpressionRequest) -> AnalysisResponse:
             detail="No GTEx expression data found for any of the provided genes.",
         )
 
+    if len(matrix) < 2:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Co-expression needs at least 2 genes with GTEx data; "
+                f"only {len(matrix)} found ({', '.join(matrix)})."
+            ),
+        )
+
     all_tissue_keys: set[str] = set()
     for gene_tissues in matrix.values():
         all_tissue_keys.update(gene_tissues.keys())
