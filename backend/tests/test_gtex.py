@@ -461,3 +461,29 @@ class TestFetchMedianExpressionPaging:
             MockClient.return_value.__aenter__.return_value.get = mock_get
             await gtex.fetch_median_expression(["A.1"], tissue_ids=["Liver", "Lung"])
         assert mock_get.call_args[1]["params"]["tissueSiteDetailId"] == ["Liver", "Lung"]
+
+
+# ---------------------------------------------------------------------------
+# ISSUES.md #3: dataset -> GENCODE version
+# ---------------------------------------------------------------------------
+
+class TestDatasetGencodeVersion:
+    @pytest.mark.asyncio
+    async def test_v10_uses_gencode_v39_and_bypasses_cache(self):
+        mock_get = AsyncMock(return_value=_mock_response({"data": [{"gencodeId": "ENSG00000141510.18"}]}))
+        with patch("app.services.gene_cache._cache", {"TP53": "ENSG00000141510.16"}), \
+             patch("httpx.AsyncClient") as MockClient:
+            MockClient.return_value.__aenter__.return_value.get = mock_get
+            result = await gtex.resolve_genes(["TP53"], "gtex_v10")
+        assert mock_get.call_args[1]["params"]["gencodeVersion"] == "v39"
+        assert result == {"TP53": "ENSG00000141510.18"}
+
+    @pytest.mark.asyncio
+    async def test_v10_does_not_write_v39_ids_to_v26_cache(self):
+        mock_get = AsyncMock(return_value=_mock_response({"data": [{"gencodeId": "ENSG00000141510.18"}]}))
+        shared: dict = {}
+        with patch("app.services.gene_cache._cache", shared), \
+             patch("httpx.AsyncClient") as MockClient:
+            MockClient.return_value.__aenter__.return_value.get = mock_get
+            await gtex.resolve_genes(["TP53"], "gtex_v10")
+        assert shared == {}

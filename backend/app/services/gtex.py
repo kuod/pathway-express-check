@@ -26,7 +26,15 @@ _ITEMS_PER_PAGE = 2000  # GTEx defaults to 250 rows/page; 20 genes x 54 tissues 
 _RESOLVE_CONCURRENCY = 20  # cap simultaneous /reference/gene requests
 
 
-async def resolve_genes(symbols: list[str]) -> dict[str, str | None]:
+# GTEx dataset -> GENCODE annotation it was built on. Versioned ENSG ids differ
+# between releases, so an id resolved for one dataset returns no rows for another.
+GENCODE_VERSIONS: dict[str, str] = {"gtex_v8": "v26", "gtex_v10": "v39"}
+_CACHE_GENCODE_VERSION = "v26"  # the shipped disk cache is built from GENCODE v26
+
+
+async def resolve_genes(
+    symbols: list[str], dataset_id: str = "gtex_v8"
+) -> dict[str, str | None]:
     """
     Resolve gene symbols to versioned GTEx gencodeIds (ENSG....version).
     Returns {symbol: gencodeId_or_None}.
@@ -35,11 +43,13 @@ async def resolve_genes(symbols: list[str]) -> dict[str, str | None]:
     Checks the local disk cache first; only symbols not in cache hit the API.
     Successful API resolutions are written back to the cache.
     """
+    gencode_version = GENCODE_VERSIONS.get(dataset_id, _CACHE_GENCODE_VERSION)
+    use_cache = gencode_version == _CACHE_GENCODE_VERSION
     results: dict[str, str | None] = {}
     uncached: list[str] = []
 
     for sym in symbols:
-        cached = gene_cache.lookup(sym)
+        cached = gene_cache.lookup(sym) if use_cache else None
         if cached is not None:
             results[sym] = cached
         else:
@@ -60,7 +70,7 @@ async def resolve_genes(symbols: list[str]) -> dict[str, str | None]:
             try:
                 r = await client.get(
                     f"{_BASE}/reference/gene",
-                    params={"geneId": symbol, "gencodeVersion": "v26", "genomeBuild": "GRCh38/hg38"},
+                    params={"geneId": symbol, "gencodeVersion": gencode_version, "genomeBuild": "GRCh38/hg38"},
                     timeout=_TIMEOUT,
                 )
                 r.raise_for_status()
@@ -69,7 +79,7 @@ async def resolve_genes(symbols: list[str]) -> dict[str, str | None]:
                 if genes:
                     gid = genes[0].get("gencodeId")
                     results[symbol] = gid
-                    if gid:
+                    if gid and use_cache:
                         gene_cache.put(symbol, gid)  # write-back
                 else:
                     results[symbol] = None
@@ -174,7 +184,7 @@ async def get_expression_matrix(
         genes_not_found: symbols that could not be resolved
     """
     # Step 1: resolve symbols to Ensembl IDs
-    id_map = await resolve_genes(symbols)
+    id_map = await resolve_genes(symbols, dataset_id)
     found_map = {sym: gid for sym, gid in id_map.items() if gid}
     genes_not_found = [sym for sym, gid in id_map.items() if not gid]
 
