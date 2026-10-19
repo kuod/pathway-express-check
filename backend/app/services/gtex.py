@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 _BASE = settings.gtex_api_base
 _TIMEOUT = settings.request_timeout
 _GENE_BATCH_SIZE = 20
+_ITEMS_PER_PAGE = 2000  # GTEx defaults to 250 rows/page; 20 genes x 54 tissues = 1080
 _RESOLVE_CONCURRENCY = 20  # cap simultaneous /reference/gene requests
 
 
@@ -101,18 +102,25 @@ async def fetch_median_expression(
         params: dict = {
             "datasetId": dataset_id,
             "gencodeId": batch,  # list → httpx repeats the key: ?gencodeId=X&gencodeId=Y
+            "itemsPerPage": _ITEMS_PER_PAGE,
         }
         if tissue_ids:
-            params["tissueSiteDetailId"] = ",".join(tissue_ids)
+            params["tissueSiteDetailId"] = tissue_ids
         try:
-            r = await client.get(
-                f"{_BASE}/expression/medianGeneExpression",
-                params=params,
-                timeout=_TIMEOUT,
-            )
-            r.raise_for_status()
-            data = r.json()
-            all_records.extend(data.get("data", []))
+            page = 0
+            while True:
+                r = await client.get(
+                    f"{_BASE}/expression/medianGeneExpression",
+                    params={**params, "page": page},
+                    timeout=_TIMEOUT,
+                )
+                r.raise_for_status()
+                data = r.json()
+                all_records.extend(data.get("data", []))
+                n_pages = (data.get("paging_info") or {}).get("numberOfPages", 1)
+                page += 1
+                if page >= n_pages:
+                    break
         except Exception as exc:
             logger.warning("Expression batch fetch failed for %d IDs: %s", len(batch), exc)
 

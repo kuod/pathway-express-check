@@ -418,3 +418,46 @@ class TestGetExpressionMatrix:
         assert "TP53" in matrix
         assert "BRCA1" not in matrix
         assert "BRCA1" in not_found
+
+
+# ---------------------------------------------------------------------------
+# ISSUES.md #1 / #2: pagination and tissue filter
+# ---------------------------------------------------------------------------
+
+class TestFetchMedianExpressionPaging:
+    @pytest.mark.asyncio
+    async def test_follows_pagination(self):
+        """GTEx caps pages (250 rows by default); all pages must be fetched."""
+        pages = {
+            0: {"data": [{"gencodeId": "A.1", "tissueSiteDetailId": "T0", "median": 1}],
+                "paging_info": {"numberOfPages": 3, "page": 0}},
+            1: {"data": [{"gencodeId": "A.1", "tissueSiteDetailId": "T1", "median": 2}],
+                "paging_info": {"numberOfPages": 3, "page": 1}},
+            2: {"data": [{"gencodeId": "A.1", "tissueSiteDetailId": "T2", "median": 3}],
+                "paging_info": {"numberOfPages": 3, "page": 2}},
+        }
+
+        async def fake_get(url, *, params, timeout):
+            return _mock_response(pages[params["page"]])
+
+        with patch("httpx.AsyncClient") as MockClient:
+            MockClient.return_value.__aenter__.return_value.get = fake_get
+            result = await gtex.fetch_median_expression(["A.1"])
+
+        assert [r["tissueSiteDetailId"] for r in result] == ["T0", "T1", "T2"]
+
+    @pytest.mark.asyncio
+    async def test_requests_large_page_size(self):
+        mock_get = AsyncMock(return_value=_mock_response({"data": []}))
+        with patch("httpx.AsyncClient") as MockClient:
+            MockClient.return_value.__aenter__.return_value.get = mock_get
+            await gtex.fetch_median_expression(["A.1"])
+        assert mock_get.call_args[1]["params"]["itemsPerPage"] >= 1080
+
+    @pytest.mark.asyncio
+    async def test_tissue_filter_is_list_not_comma_joined(self):
+        mock_get = AsyncMock(return_value=_mock_response({"data": []}))
+        with patch("httpx.AsyncClient") as MockClient:
+            MockClient.return_value.__aenter__.return_value.get = mock_get
+            await gtex.fetch_median_expression(["A.1"], tissue_ids=["Liver", "Lung"])
+        assert mock_get.call_args[1]["params"]["tissueSiteDetailId"] == ["Liver", "Lung"]
