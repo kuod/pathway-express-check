@@ -38,7 +38,7 @@ export function CorrelationHeatmap({ coexpression }: Props) {
               reversescale: true,
               zmin: -1,
               zmax: 1,
-              colorbar: { title: "Pearson r", thickness: 15 },
+              colorbar: { title: { text: "Pearson r" }, thickness: 15 },
             },
           ]}
           layout={{
@@ -67,7 +67,7 @@ export function CorrelationHeatmap({ coexpression }: Props) {
             data={[
               {
                 type: "scatter",
-                mode: "markers+text",
+                mode: "text+markers",
                 x: pcaX,
                 y: pcaY,
                 text: genes,
