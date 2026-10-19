@@ -136,7 +136,9 @@ export function useAnalysis() {
       setState((s) => ({ ...s, selectedLibrary: lib, selectedPathway: null, result: null })),
     setPathway: (p: PathwayDetail | null) =>
       setState((s) => ({ ...s, selectedPathway: p, result: null })),
-    setDatasetId: (id: string) => setState((s) => ({ ...s, datasetId: id })),
+    // Results belong to the dataset they were computed on; drop them on change so
+    // they cannot be viewed or exported under the wrong dataset label.
+    setDatasetId: (id: string) => setState((s) => ({ ...s, datasetId: id, result: null })),
     runAnalysis: () => {
       setLogLines([]);
       clearTimers();
