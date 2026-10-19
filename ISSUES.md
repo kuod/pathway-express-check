@@ -113,7 +113,9 @@ Baseline evidence: `pytest` (23 tests, all gtex.py) passed on Python 3.13; `npm 
 ## #21 enhancement: dependency drift and vulnerabilities
 - `npm audit --omit=dev`: 14 vulnerabilities (2 critical, 8 high) from the plotly.js / transitive tree. Python deps use open `>=` ranges with no lockfile (numpy>=2, pandas>=2.2, gseapy>=1.1.12), Docker uses Python 3.11 while local runs were on 3.13.
 - Proposed: pin/lock Python deps, review `npm audit` (some fixes are breaking). Not changed: risk of breaking the plotting stack.
-- Status: open
+- Done (non-breaking only): `npm audit fix` (no --force) updated `package-lock.json` only: 14 -> 2 vulnerabilities in `--omit=dev` (both critical, `maplibre-gl` via `plotly.js`). Remaining fix needs plotly.js 3/4 (breaking, `--force`); the app uses only heatmap/scatter traces, not map traces, so the maplibre XSS path is not exercised, but it is left open for an owner decision on a plotly major upgrade. Python deps got upper bounds (next major, seaborn <0.14), tested set: numpy 2.5, pandas 3.0, scipy 1.18, matplotlib 3.11, scikit-learn 1.9, gseapy 1.3 on Python 3.13 (57 tests pass on a fresh install). Docker base image bumped 3.11 -> 3.13-slim to match what is tested (image build not run here).
+- Not done: no Python lockfile (would need pip-tools/uv; adds tooling), no hash pinning.
+- Status: fixed (partial: 2 npm criticals remain, wontfix-documented pending plotly major upgrade)
 
 ## Checked, no finding
 - Secrets: no keys/tokens in tree or history (`git log --all` file names and grep); `.env` is git-ignored; only author identity in history.
