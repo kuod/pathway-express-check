@@ -4,7 +4,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./backend/app:/app/app   # hot-reload during dev
+      - ./backend/app:/app/app   # live-mount app code (restart container to pick up changes; CMD has no --reload)
     environment:
       - GTEX_DATASET_ID=gtex_v8
     restart: unless-stopped

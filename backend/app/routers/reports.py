@@ -185,7 +185,7 @@ def generate_docx_report(req: ReportRequest):
         doc.add_paragraph(
             f"Median transcript per million (TPM) expression values were retrieved from the "
             f"{req.dataset_info} via the GTEx Portal REST API (gtexportal.org/api/v2). "
-            "Only protein-coding genes with versioned GENCODE v26 identifiers were included."
+            "Gene symbols were resolved to versioned GENCODE identifiers; genes without GTEx entries were excluded."
         )
         doc.add_heading("Co-expression Analysis", 2)
         doc.add_paragraph(

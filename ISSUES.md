@@ -69,7 +69,7 @@ Baseline evidence: `pytest` (23 tests, all gtex.py) passed on Python 3.13; `npm 
 
 ## #13 bug: nginx default `proxy_read_timeout` (60 s) is shorter than the documented analysis time and the 120 s axios timeout
 - Repro: docker deployment, large pathway -> 504 from nginx while the backend is still working.
-- Fix: `proxy_read_timeout 300s`.
+- Fix: `proxy_read_timeout 300s`; also `client_max_body_size 50m` since nginx's 1 MB default rejects report POSTs carrying large result matrices (not reproduced under docker here; no docker daemon used).
 - Status: fixed
 
 ## #14 bug: `GTEX_DATASET_ID` setting / `.env.example` has no effect
@@ -84,7 +84,7 @@ Baseline evidence: `pytest` (23 tests, all gtex.py) passed on Python 3.13; `npm 
 
 ## #16 documentation: stale or wrong docs
 - README claims the shipped cache has ~56K genes; committed file has 799. README "Example output" shows SD / "Min tissue" columns the app never computes, and numbers that cannot be reproduced from the code (treat as illustrative; labelled so now). ExportPanel says figures are 300 dpi; backend renders 150 dpi. DOCX methods claim "only protein-coding genes" which the code does not enforce. CLAUDE.md says search is debounced (was not, see #10) and lists the dead `/dataset/tissueInfo` endpoint (code uses `tissueSiteDetail`). docker-compose comment says "hot-reload" but uvicorn runs without `--reload`. README test command needs pytest + pytest-asyncio which were not in any requirements file.
-- Fix: corrected each.
+- Fix: corrected each (CLAUDE.md debounce claim is now true after #10).
 - Status: fixed
 
 ## #17 enhancement: test coverage limited to gtex.py; pytest not installable from repo files
