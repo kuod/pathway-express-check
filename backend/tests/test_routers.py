@@ -48,3 +48,10 @@ def test_analyze_happy_path():
         r = _post(["A", "B"])
     assert r.status_code == 200
     assert r.json()["coexpression"]["pathway_consistency_score"] > 0.9
+
+
+def test_dataset_default_comes_from_settings():
+    from app.config import settings
+    from app.models.schemas import ExpressionRequest
+
+    assert ExpressionRequest(genes=["A"], pathway_name="p").dataset_id == settings.gtex_dataset_id
