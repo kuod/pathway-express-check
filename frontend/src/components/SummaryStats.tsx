@@ -17,7 +17,7 @@ export function SummaryStats({ coexpression }: Props) {
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-gray-200">
-                {["Gene", "Mean TPM", "Median TPM", "Std", "CV", "Max Tissue", "Max TPM"].map((h) => (
+                {["Gene", "Mean TPM", "Median TPM", "Std", "CV", "Max Tissue", "Max TPM", "Tissues obs."].map((h) => (
                   <th key={h} className="text-left py-1.5 px-2 text-gray-500 font-medium whitespace-nowrap">
                     {h}
                   </th>
@@ -30,14 +30,19 @@ export function SummaryStats({ coexpression }: Props) {
                 return (
                   <tr key={gene} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                     <td className="py-1.5 px-2 font-mono font-medium">{gene}</td>
-                    <td className="py-1.5 px-2">{s.mean_tpm.toFixed(2)}</td>
-                    <td className="py-1.5 px-2">{s.median_tpm.toFixed(2)}</td>
-                    <td className="py-1.5 px-2">{s.std_tpm.toFixed(2)}</td>
-                    <td className="py-1.5 px-2">{s.cv.toFixed(3)}</td>
-                    <td className="py-1.5 px-2 max-w-[160px] truncate" title={s.max_tissue}>
+                    <td className="py-1.5 px-2">{s.mean_tpm?.toFixed(2) ?? "–"}</td>
+                    <td className="py-1.5 px-2">{s.median_tpm?.toFixed(2) ?? "–"}</td>
+                    <td className="py-1.5 px-2">{s.std_tpm?.toFixed(2) ?? "–"}</td>
+                    <td className="py-1.5 px-2">{s.cv?.toFixed(3) ?? "–"}</td>
+                    <td className="py-1.5 px-2 max-w-[160px] truncate" title={s.max_tissue ?? undefined}>
                       {s.max_tissue}
                     </td>
-                    <td className="py-1.5 px-2">{s.max_tpm.toFixed(1)}</td>
+                    <td className="py-1.5 px-2">{s.max_tpm?.toFixed(1) ?? "–"}</td>
+                    <td className="py-1.5 px-2">
+                      {s.n_observed !== undefined && coexpression.coverage
+                        ? `${s.n_observed}/${coexpression.coverage.gene_coverage[gene]?.n_tissues ?? "?"}`
+                        : "–"}
+                    </td>
                   </tr>
                 );
               })}
