@@ -79,3 +79,14 @@ def test_figure_helpers_threadsafe_and_leave_no_pyplot_figures():
         outs = [f.result() for f in futs]
     assert all(o.startswith(b"\x89PNG") for o in outs)
     assert plt.get_fignums() == []
+
+
+@pytest.mark.parametrize("info", ["GTEx v8", "GTEx v10"])
+def test_html_report_methods_do_not_hardcode_gencode_version(info):
+    body = _payload()
+    body["dataset_info"] = info
+    body["include_methods"] = True
+    r = client.post("/api/reports/html", json=body)
+    assert r.status_code == 200
+    assert info in r.text
+    assert "GENCODE v26" not in r.text

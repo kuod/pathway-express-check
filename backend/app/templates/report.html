@@ -56,7 +56,7 @@
 <h3>Gene Sets</h3>
 <p>Gene sets were obtained from the Molecular Signatures Database (MSigDB) via gseapy (v1.1). The <em>{{ pathway_name }}</em> gene set was used as input for all downstream analyses.</p>
 <h3>Expression Data</h3>
-<p>Median transcript per million (TPM) expression values were retrieved from {{ dataset_info }} via the GTEx Portal REST API (gtexportal.org/api/v2). Gene symbols were resolved to versioned GENCODE v26 identifiers using the GTEx /reference/gene endpoint. Only genes with confirmed GTEx entries were included in the analysis.</p>
+<p>Median transcript per million (TPM) expression values were retrieved from {{ dataset_info }} via the GTEx Portal REST API (gtexportal.org/api/v2). Gene symbols were resolved to versioned GENCODE identifiers using the GTEx /reference/gene endpoint. Only genes with confirmed GTEx entries were included in the analysis.</p>
 <h3>Co-expression Analysis</h3>
 <p>Expression values were log₂(TPM+1) transformed prior to analysis. Pairwise Pearson correlations were computed across all available GTEx tissues. Pathway coherence was summarized as the mean of all upper-triangle pairwise correlation values, yielding a score between −1 (anti-correlated) and +1 (perfectly co-expressed). Principal component analysis (PCA) was performed on the log-transformed expression matrix with genes as observations and tissues as features using scikit-learn.</p>
 {% endif %}
