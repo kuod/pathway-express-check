@@ -12,7 +12,11 @@ logger = logging.getLogger(__name__)
 
 @router.get("/tissues")
 async def get_tissues(dataset_id: str = "gtex_v8") -> list[dict]:
-    """Return all GTEx tissue metadata for a dataset."""
+    """Return all GTEx tissue metadata.
+
+    `dataset_id` is accepted for API symmetry but currently ignored: the GTEx
+    tissueSiteDetail endpoint is not dataset-specific here.
+    """
     try:
         return await gtex.list_tissues(dataset_id)
     except Exception as e:

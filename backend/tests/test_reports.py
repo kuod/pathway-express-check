@@ -101,3 +101,14 @@ def test_html_report_surfaces_coverage_and_null_correlations():
     html = client.post("/api/reports/html", json=p).text
     assert "Data Completeness" in html and "0 of 1 gene pairs" in html
     assert "Genes excluded" in html
+
+
+@pytest.mark.parametrize("info", ["GTEx v8", "GTEx v10"])
+def test_html_report_methods_do_not_hardcode_gencode_version(info):
+    body = _payload()
+    body["dataset_info"] = info
+    body["include_methods"] = True
+    r = client.post("/api/reports/html", json=body)
+    assert r.status_code == 200
+    assert info in r.text
+    assert "GENCODE v26" not in r.text
