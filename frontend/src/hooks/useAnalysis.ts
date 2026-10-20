@@ -5,6 +5,11 @@ import { runAnalysis, downloadReport } from "@/api/client";
 import type { AnalysisResponse, PathwayDetail, ReportRequest } from "@/types";
 import type { LogLine } from "@/components/ActivityLog";
 
+const DATASET_LABELS: Record<string, string> = {
+  gtex_v8: "GTEx v8",
+  gtex_v10: "GTEx v10",
+};
+
 interface AnalysisState {
   selectedLibrary: string;
   selectedPathway: PathwayDetail | null;
@@ -131,7 +136,7 @@ export function useAnalysis() {
         pathway_genes: state.selectedPathway.genes,
         expression: state.result.expression,
         coexpression: state.result.coexpression,
-        dataset_info: state.datasetId === "gtex_v8" ? "GTEx v8" : state.datasetId,
+        dataset_info: DATASET_LABELS[state.datasetId] ?? state.datasetId,
         include_methods: true,
       };
       return downloadReport(format, req);
