@@ -15,7 +15,7 @@ Pathway Express Check is a bioinformatics web app that interrogates MSigDB gene 
 - `app/main.py` — FastAPI app with CORS; mounts three routers under `/api`
 - `app/services/msigdb.py` — wraps `gseapy` to list/search/fetch MSigDB gene sets; results cached with `@lru_cache`
 - `app/services/gtex.py` — async `httpx` client for GTEx Portal API v2; resolves gene symbols → versioned GENCODE IDs, then batch-fetches median TPM in groups of 20
-- `app/services/analysis.py` — pure pandas/numpy/scipy computations: correlation matrix, pathway consistency score (mean pairwise Pearson r on log₂(TPM+1)), PCA, summary stats
+- `app/services/analysis.py` — pure pandas/numpy/scipy computations: correlation matrix, pathway consistency score (mean pairwise Pearson r on log₂(TPM+1)), PCA, summary stats, coverage
 - `app/routers/pathways.py` — MSigDB library/pathway endpoints
 - `app/routers/expression.py` — GTEx tissue list + the primary `/analyze` endpoint (fetches + computes in one call)
 - `app/routers/reports.py` — generates HTML (Jinja2 template), DOCX (python-docx), figures ZIP (matplotlib/seaborn), and Excel (openpyxl) exports
@@ -78,6 +78,7 @@ docker compose up --build
 
 - **Gene symbol resolution**: GTEx requires versioned Ensembl IDs. The gtex service resolves each symbol via `/reference/gene` (parallel async calls) before fetching expression.
 - **Pathway consistency score**: single number summarizing co-expression — the mean of all upper-triangle Pearson r values on log₂(TPM+1) data. Useful for comparing pathways.
+- **Missing data**: never zero-filled. Correlations are pairwise-complete (tissues where both genes are observed) and need `MIN_OBSERVATIONS` (default 3, `app/config.py`) shared tissues, else `null` and excluded from the score; PCA uses only tissues observed for all PCA genes. Observed counts are returned in `coexpression.coverage` and shown in the UI/reports.
 - **MSigDB cache**: `@lru_cache` on `load_library()` means each library is downloaded once per process. Restart the server to clear.
 - **Report figures**: matplotlib figures are rendered server-side to PNG bytes (using the `Agg` backend) and base64-encoded into the HTML report. The same bytes are zipped for the figures export.
 - **sklearn dependency**: `analysis.py` uses `sklearn.decomposition.PCA` — if adding new dependencies, remember to add to `requirements.txt`.

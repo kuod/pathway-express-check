@@ -141,6 +141,8 @@ New symbols resolved live via the GTEx API are written back automatically.
 | GTEx Portal v2 | `https://gtexportal.org/api/v2` | None |
 | MSigDB (via gseapy) | Broad Institute CDN | None |
 
+**Missing data.** Missing expression values are never imputed as zero. Each gene pair is correlated over the tissues where both genes were observed (pairwise-complete) and must share at least `MIN_OBSERVATIONS` tissues (default 3; set in `.env`); pairs below that show as blank/`null` and are left out of the pathway score. PCA uses only tissues observed for every included gene. Per-gene/per-tissue observed counts are returned in `coexpression.coverage` and listed in the exported reports.
+
 Large gene sets (>100 genes) may take 20–40 s on first analysis while expression data is fetched. Subsequent runs for cached genes are significantly faster.
 
 ---
