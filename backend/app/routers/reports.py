@@ -128,8 +128,20 @@ def generate_html_report(req: ReportRequest):
     stats_df = pd.DataFrame(req.coexpression.summary_stats).T
     stats_html = stats_df.to_html(classes="stats-table", border=0, float_format="{:.3f}".format)
 
+    cov = req.coexpression.coverage
+    low_cov_genes = []
+    n_tissues = 0
+    if cov:
+        for g, gc in cov.gene_coverage.items():
+            n_tissues = gc.n_tissues
+            if gc.n_observed < gc.n_tissues:
+                low_cov_genes.append((g, gc.n_observed))
+
     tmpl = _JINJA_ENV.get_template("report.html")
     html = tmpl.render(
+        coverage=cov,
+        low_cov_genes=low_cov_genes,
+        n_tissues=n_tissues,
         pathway_name=req.pathway_name,
         analysis_date=date.today().isoformat(),
         dataset_info=req.dataset_info,
@@ -190,7 +202,8 @@ def generate_docx_report(req: ReportRequest):
         doc.add_heading("Co-expression Analysis", 2)
         doc.add_paragraph(
             "Expression values were log₂(TPM+1) transformed. "
-            "Pairwise Pearson correlations were computed across all GTEx tissues. "
+            "Missing values were not imputed; pairwise Pearson correlations used the tissues in which both "
+            "genes were observed, and pairs with too few shared tissues were excluded. "
             "Pathway coherence was summarized as the mean of all upper-triangle correlation values. "
             "Principal component analysis (PCA) was performed on the log-transformed expression matrix "
             "with genes as observations and tissues as features."
@@ -206,6 +219,21 @@ def generate_docx_report(req: ReportRequest):
         doc.add_paragraph(
             f"Genes not found: {', '.join(req.expression.genes_not_found)}."
         )
+    cov = req.coexpression.coverage
+    if cov:
+        doc.add_paragraph(
+            f"{cov.pairs_evaluated} of {cov.pairs_total} gene pairs had at least "
+            f"{cov.min_observations_effective} shared observed tissues and contributed to the score."
+        )
+        if cov.genes_dropped_low_coverage:
+            doc.add_paragraph(
+                "Genes excluded for too few observed tissues: "
+                f"{', '.join(cov.genes_dropped_low_coverage)}."
+            )
+        partial = [f"{g} ({c.n_observed}/{c.n_tissues})" for g, c in cov.gene_coverage.items()
+                   if c.n_observed < c.n_tissues]
+        if partial:
+            doc.add_paragraph(f"Genes with incomplete tissue coverage: {', '.join(partial)}.")
     doc.add_paragraph("[Insert expression heatmap and correlation heatmap figures here.]")
     doc.add_paragraph("[Describe top co-expressed pairs and tissue-specific expression patterns.]")
 
@@ -279,6 +307,11 @@ def download_csv(req: ReportRequest):
         stats_df.to_excel(writer, sheet_name="Summary_Stats")
         corr_df = pd.DataFrame(req.coexpression.correlation_matrix)
         corr_df.to_excel(writer, sheet_name="Correlation_Matrix")
+        cov = req.coexpression.coverage
+        if cov:
+            pd.DataFrame(
+                {g: c.model_dump() for g, c in cov.gene_coverage.items()}
+            ).T.to_excel(writer, sheet_name="Gene_Coverage")
     buf.seek(0)
     filename = _safe_filename(req.pathway_name, "_expression_data.xlsx")
     return StreamingResponse(

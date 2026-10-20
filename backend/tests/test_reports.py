@@ -81,6 +81,28 @@ def test_figure_helpers_threadsafe_and_leave_no_pyplot_figures():
     assert plt.get_fignums() == []
 
 
+def test_html_report_surfaces_coverage_and_null_correlations():
+    p = _payload()
+    p["coexpression"]["correlation_matrix"]["A"]["B"] = None
+    p["coexpression"]["correlation_matrix"]["B"]["A"] = None
+    p["coexpression"]["coverage"] = {
+        "min_observations": 3, "min_observations_effective": 3,
+        "gene_coverage": {
+            "A": {"n_observed": 3, "n_tissues": 3, "low_coverage": False},
+            "B": {"n_observed": 1, "n_tissues": 3, "low_coverage": True},
+        },
+        "tissue_coverage": {"t1": {"n_observed": 2, "n_genes": 2}},
+        "genes_dropped_low_coverage": ["B"], "tissues_with_missing": [],
+        "pairs_total": 1, "pairs_evaluated": 0,
+        "pca_genes": ["A"], "pca_tissues_used": 3, "pca_tissues_dropped": [],
+    }
+    for path in ("html", "docx", "data/csv", "figures/zip"):
+        assert client.post(f"/api/reports/{path}", json=p).status_code == 200
+    html = client.post("/api/reports/html", json=p).text
+    assert "Data Completeness" in html and "0 of 1 gene pairs" in html
+    assert "Genes excluded" in html
+
+
 @pytest.mark.parametrize("info", ["GTEx v8", "GTEx v10"])
 def test_html_report_methods_do_not_hardcode_gencode_version(info):
     body = _payload()

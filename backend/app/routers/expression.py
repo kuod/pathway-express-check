@@ -1,4 +1,5 @@
 import logging
+import math
 import time
 
 from fastapi import APIRouter, HTTPException
@@ -91,11 +92,23 @@ async def analyze(request: ExpressionRequest) -> AnalysisResponse:
 
     # Run co-expression analysis
     coexpression = analysis.run_full_analysis(matrix)
+    score = coexpression["pathway_consistency_score"]
+    if score is None or math.isnan(score):
+        cov = coexpression["coverage"]
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "No gene pair shares at least "
+                f"{cov['min_observations_effective']} observed tissues; correlations "
+                "cannot be computed without imputing missing values. "
+                f"Genes with too little data: {', '.join(cov['genes_dropped_low_coverage']) or 'none'}."
+            ),
+        )
 
     elapsed = time.perf_counter() - t_start
     logger.info(
         "Analysis complete: consistency_score=%.4f, elapsed=%.1fs",
-        coexpression.get("pathway_consistency_score", float("nan")),
+        score,
         elapsed,
     )
 

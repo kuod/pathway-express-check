@@ -223,8 +223,10 @@ async def get_expression_matrix(
             sym = next((s for s, g in found_map.items() if g.startswith(base)), None)
         if sym:
             tissue = rec.get("tissueSiteDetailId", "")
-            tpm = float(rec.get("median", 0.0))
-            matrix.setdefault(sym, {})[tissue] = tpm
+            median = rec.get("median")
+            if median is None:  # missing measurement: leave the cell absent, do not invent 0
+                continue
+            matrix.setdefault(sym, {})[tissue] = float(median)
 
     genes_found = list(matrix.keys())
     genes_not_found_final = genes_not_found + [

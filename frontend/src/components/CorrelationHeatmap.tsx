@@ -9,7 +9,7 @@ export function CorrelationHeatmap({ coexpression }: Props) {
   const { correlation_matrix, pca_coordinates, pca_variance_explained } = coexpression;
   const genes = Object.keys(correlation_matrix);
 
-  const z = genes.map((g1) => genes.map((g2) => correlation_matrix[g1]?.[g2] ?? 0));
+  const z = genes.map((g1) => genes.map((g2) => correlation_matrix[g1]?.[g2] ?? null));
 
   // PCA scatter data
   const pcaX = genes.map((g) => pca_coordinates[g]?.[0] ?? 0);
@@ -27,6 +27,18 @@ export function CorrelationHeatmap({ coexpression }: Props) {
           </span>{" "}
           (mean pairwise Pearson r; range −1 to +1)
         </p>
+        {coexpression.coverage && (
+          <p className="text-xs text-gray-500 mb-3">
+            Missing values are not imputed. {coexpression.coverage.pairs_evaluated} of{" "}
+            {coexpression.coverage.pairs_total} gene pairs had ≥{" "}
+            {coexpression.coverage.min_observations_effective} shared tissues (blank cells = too few).
+            {coexpression.coverage.genes_dropped_low_coverage.length > 0 && (
+              <span className="text-amber-700">
+                {" "}Excluded (low coverage): {coexpression.coverage.genes_dropped_low_coverage.join(", ")}.
+              </span>
+            )}
+          </p>
+        )}
         <Plot
           data={[
             {

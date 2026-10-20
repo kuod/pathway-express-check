@@ -99,8 +99,10 @@ Baseline evidence (historical, before the fixes): `pytest` (23 tests, all gtex.p
 
 ## #19 bug (design): missing gene/tissue values are silently zero-filled before correlation
 - Evidence: `build_dataframe` does `fillna(0.0)`; with a tissue subset or incomplete GTEx rows the Pearson r is computed on fabricated zeros (sparse example gives different scores).
-- Proposed fix: drop tissues with any missing value (or pairwise-complete correlation) and report it. Behaviour change affects results, so left for owner decision.
-- Status: open
+- Fix: no imputation anywhere. `gtex.get_expression_matrix` no longer turns a missing `median` into 0 (cell left absent); `build_dataframe` keeps NaN; `compute_coexpression` is pairwise-complete (each gene pair uses only tissues where both are observed) and requires `settings.min_observations` (default 3, env `MIN_OBSERVATIONS`) shared tissues, else the pair is NaN/`null`, excluded from the score and top pairs (capped at the tissue count, floor 2, so tiny deliberate tissue selections still run). PCA uses only genes meeting the minimum and tissues complete across them. Summary stats use observed tissues only. API: additive `coexpression.coverage` (per-gene/per-tissue observed counts, genes dropped, pairs evaluated/total, PCA tissues used/dropped, minimums) and `summary_stats[gene].n_observed`; `correlation_matrix` values may now be `null`; `/analyze` returns 422 if no pair is evaluable. HTML/DOCX/Excel reports state the rule and list low-coverage genes. Frontend shows coverage and renders `null` as blank. Tests in `test_analysis.py`, `test_reports.py`.
+- Behaviour change: scores/correlations/PCA change whenever data was incomplete (identical for complete matrices). Zero-variance pairs still report r = 0.0 (undefined, unchanged).
+- Not done: min-observation threshold is not exposed per request; GTEx medians that are genuinely 0 are still treated as measured zeros.
+- Status: fixed
 
 ## #20 enhancement: concurrency and I/O hazards
 - `reports.py` uses global `matplotlib.pyplot` state from sync endpoints that run in a thread pool: concurrent exports can interleave figures. Proposed: use `matplotlib.figure.Figure` objects directly.

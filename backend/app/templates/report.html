@@ -58,7 +58,7 @@
 <h3>Expression Data</h3>
 <p>Median transcript per million (TPM) expression values were retrieved from {{ dataset_info }} via the GTEx Portal REST API (gtexportal.org/api/v2). Gene symbols were resolved to versioned GENCODE identifiers using the GTEx /reference/gene endpoint. Only genes with confirmed GTEx entries were included in the analysis.</p>
 <h3>Co-expression Analysis</h3>
-<p>Expression values were log₂(TPM+1) transformed prior to analysis. Pairwise Pearson correlations were computed across all available GTEx tissues. Pathway coherence was summarized as the mean of all upper-triangle pairwise correlation values, yielding a score between −1 (anti-correlated) and +1 (perfectly co-expressed). Principal component analysis (PCA) was performed on the log-transformed expression matrix with genes as observations and tissues as features using scikit-learn.</p>
+<p>Expression values were log₂(TPM+1) transformed prior to analysis. Missing expression values were not imputed: each gene pair was correlated over the tissues in which both genes were observed (pairwise-complete), and pairs sharing fewer than {{ coverage.min_observations_effective if coverage else 'a minimum number of' }} tissues were left undefined and excluded from the score. Pathway coherence was summarized as the mean of all upper-triangle pairwise correlation values, yielding a score between −1 (anti-correlated) and +1 (perfectly co-expressed). Principal component analysis (PCA) was performed on the complete (no missing value) part of the log-transformed expression matrix with genes as observations and tissues as features using scikit-learn.</p>
 {% endif %}
 
 <h2>Results</h2>
@@ -102,6 +102,28 @@
 
 <h3>Per-gene Summary Statistics</h3>
 {{ stats_table }}
+
+<h3>Data Completeness</h3>
+{% if coverage %}
+<p>Missing values were not imputed. Correlations require at least
+  <strong>{{ coverage.min_observations_effective }}</strong> shared observed tissues per gene pair;
+  {{ coverage.pairs_evaluated }} of {{ coverage.pairs_total }} gene pairs met this and contributed to the score.
+  PCA used {{ coverage.pca_tissues_used }} tissues observed for all PCA genes.</p>
+{% if coverage.genes_dropped_low_coverage %}
+<p><strong class="not-found">Genes excluded (observed in fewer than {{ coverage.min_observations_effective }} tissues):</strong>
+  <span class="gene-list not-found">{{ coverage.genes_dropped_low_coverage | join(", ") }}</span></p>
+{% endif %}
+{% if low_cov_genes %}
+<p><strong>Genes with incomplete tissue coverage (observed / {{ n_tissues }} tissues):</strong>
+  <span class="gene-list">{% for g, n in low_cov_genes %}{{ g }} ({{ n }}){% if not loop.last %}, {% endif %}{% endfor %}</span></p>
+{% endif %}
+{% if coverage.pca_tissues_dropped %}
+<p>Tissues omitted from PCA because at least one PCA gene was unobserved ({{ coverage.pca_tissues_dropped | length }}):
+  <span class="gene-list">{{ coverage.pca_tissues_dropped | join(", ") }}</span></p>
+{% endif %}
+{% else %}
+<p>Coverage details were not supplied with this analysis.</p>
+{% endif %}
 
 <h3>Gene Coverage</h3>
 <p><strong>Genes analyzed ({{ genes_found | length }}):</strong>
