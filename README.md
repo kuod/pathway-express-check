@@ -18,7 +18,7 @@ Select a pathway, retrieve median mRNA expression across GTEx tissues, and explo
 
 The app reports mean/median TPM, SD, CV, and the max-expressing tissue per gene; the table below is a condensed illustration (the min-tissue column is not computed by the app).
 
-| Gene | Median log₂(TPM+1) | SD | Min tissue | Max tissue |
+| Gene | Median TPM | SD (TPM) | Min tissue | Max tissue |
 |------|--------------------|----|------------|------------|
 | GAPDH | 5.91 | 0.61 | ovary | skeletal muscle |
 | PKM | 5.43 | 0.88 | pituitary | skeletal muscle |
@@ -65,6 +65,8 @@ pathway-express-check/
 │   │   ├── config.py
 │   │   ├── data/
 │   │   │   └── gtex_gene_cache.json   # shipped subset of GENCODE v26 symbols (rebuild for all ~56 K)
+│   │   ├── models/
+│   │   │   └── schemas.py       # Pydantic request/response models
 │   │   ├── routers/             # pathways, expression, reports
 │   │   ├── services/
 │   │   │   ├── msigdb.py        # gseapy wrapper (LRU-cached)
@@ -76,7 +78,8 @@ pathway-express-check/
 │   ├── scripts/
 │   │   └── build_gene_cache.py  # one-time cache build from GENCODE v26 GTF
 │   ├── tests/
-│   └── requirements.txt
+│   ├── requirements.txt
+│   └── requirements-dev.txt # pytest etc.
 └── frontend/
     └── src/
         ├── api/client.ts
