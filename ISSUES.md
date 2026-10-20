@@ -1,9 +1,9 @@
 # ISSUES
 
-Findings from an adversarial pass (no GitHub remote, so tracked here). Branch: `adversarial-pass/audit-fixes`.
+Findings from an adversarial pass (historical: written before the repo had a GitHub remote; the fixes were merged to `main` via PR #1, and the remote is now `kuod`). Branch at the time: `adversarial-pass/audit-fixes`.
 Each fix commit references its issue number. Status values: open / fixed / wontfix-documented.
 
-Baseline evidence: `pytest` (23 tests, all gtex.py) passed on Python 3.13; `npm run build` FAILED; `npm run lint` FAILED.
+Baseline evidence (historical, before the fixes): `pytest` (23 tests, all gtex.py) passed on Python 3.13; `npm run build` FAILED; `npm run lint` FAILED.
 
 ---
 
@@ -63,7 +63,7 @@ Baseline evidence: `pytest` (23 tests, all gtex.py) passed on Python 3.13; `npm 
 - Status: fixed
 
 ## #12 bug: `clean.sh --force` overwrites the git-tracked gene cache with `{}`
-- Evidence: the working tree of this repo is currently in exactly that state (`gtex_gene_cache.json` shows -810 lines modified), leaving a dirty tree and destroying shipped data. Note also that HEAD's clean.sh uses `mapfile` / `declare -A` (bash 4+) and fails on macOS /bin/bash 3.2; the owner's uncommitted working-tree change already addresses that and was NOT touched or duplicated here (expect a small merge conflict in clean.sh).
+- Evidence: at the time of audit the working tree of this repo was in exactly that state (`gtex_gene_cache.json` showed -810 lines modified), leaving a dirty tree and destroying shipped data. Note also that HEAD's clean.sh uses `mapfile` / `declare -A` (bash 4+) and fails on macOS /bin/bash 3.2; the bash 3.2 compatibility fix has since been merged (PR #1).
 - Fix: restore the cache from git (`git checkout --`) when available, else leave it alone; dry-run text updated.
 - Status: fixed
 
@@ -113,7 +113,7 @@ Baseline evidence: `pytest` (23 tests, all gtex.py) passed on Python 3.13; `npm 
 ## #21 enhancement: dependency drift and vulnerabilities
 - `npm audit --omit=dev`: 14 vulnerabilities (2 critical, 8 high) from the plotly.js / transitive tree. Python deps use open `>=` ranges with no lockfile (numpy>=2, pandas>=2.2, gseapy>=1.1.12), Docker uses Python 3.11 while local runs were on 3.13.
 - Proposed: pin/lock Python deps, review `npm audit` (some fixes are breaking). Not changed: risk of breaking the plotting stack.
-- Done (non-breaking only): `npm audit fix` (no --force) updated `package-lock.json` only: 14 -> 2 vulnerabilities in `--omit=dev` (both critical, `maplibre-gl` via `plotly.js`). Remaining fix needs plotly.js 3/4 (breaking, `--force`); the app uses only heatmap/scatter traces, not map traces, so the maplibre XSS path is not exercised, but it is left open for an owner decision on a plotly major upgrade. Python deps got upper bounds (next major, seaborn <0.14), tested set: numpy 2.5, pandas 3.0, scipy 1.18, matplotlib 3.11, scikit-learn 1.9, gseapy 1.3 on Python 3.13 (57 tests pass on a fresh install). Docker base image bumped 3.11 -> 3.13-slim to match what is tested (image build not run here).
+- Done (non-breaking only): `npm audit fix` (no --force) updated `package-lock.json` only: 14 -> 2 vulnerabilities (re-verified 2026-10-19 with `npm ci && npm audit --omit=dev`: still 2 critical, `maplibre-gl` via `plotly.js`; npm now reports a fix via plain `npm audit fix`, not yet applied) in `--omit=dev` (both critical, `maplibre-gl` via `plotly.js`). Remaining fix needs plotly.js 3/4 (breaking, `--force`); the app uses only heatmap/scatter traces, not map traces, so the maplibre XSS path is not exercised, but it is left open for an owner decision on a plotly major upgrade. Python deps got upper bounds (next major, seaborn <0.14), tested set: numpy 2.5, pandas 3.0, scipy 1.18, matplotlib 3.11, scikit-learn 1.9, gseapy 1.3 on Python 3.13 (re-verified 2026-10-19 in a fresh venv: 59 tests pass, 57 before the report-text regression tests added in the docs-audit PR). Docker base image bumped 3.11 -> 3.13-slim to match what is tested (image build not run here).
 - Not done: no Python lockfile (would need pip-tools/uv; adds tooling), no hash pinning.
 - Status: fixed (partial: 2 npm criticals remain, wontfix-documented pending plotly major upgrade)
 
