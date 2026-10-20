@@ -19,7 +19,7 @@ Select a pathway, retrieve median mRNA expression across GTEx tissues, and explo
 The app reports mean/median TPM, SD, CV, and the max-expressing tissue per gene; the table below is a condensed illustration (the min-tissue column is not computed by the app).
 
 | Gene | Median TPM | SD (TPM) | Min tissue | Max tissue |
-|------|--------------------|----|------------|------------|
+|------|------------|----------|------------|------------|
 | GAPDH | 5.91 | 0.61 | ovary | skeletal muscle |
 | PKM | 5.43 | 0.88 | pituitary | skeletal muscle |
 | ALDOA | 4.87 | 1.22 | thyroid | skeletal muscle |
