@@ -10,27 +10,82 @@ import pandas as pd
 from scipy import stats
 from sklearn.decomposition import PCA
 
+from app.config import settings
+
 logger = logging.getLogger(__name__)
 
 
 def build_dataframe(expression_matrix: dict[str, dict[str, float]]) -> pd.DataFrame:
     """
     Convert the raw {gene: {tissue: tpm}} dict to a DataFrame.
-    Shape: genes × tissues. Missing values filled with 0.
+    Shape: genes x tissues. Missing values stay NaN: they are never imputed
+    (a missing measurement is not a measured zero).
     """
     df = pd.DataFrame(expression_matrix).T  # tissues as rows after transpose
-    df = df.fillna(0.0)
-    return df  # index=genes, columns=tissues
+    return df.astype(float)  # index=genes, columns=tissues
 
 
-def compute_coexpression(df: pd.DataFrame) -> pd.DataFrame:
+def effective_min_obs(n_tissues: int, min_obs: int | None = None) -> int:
     """
-    Pearson correlation between genes across tissues on log2(TPM+1) values.
-    Returns square DataFrame (genes × genes).
+    Minimum shared observations required for a correlation.
+
+    Defaults to ``settings.min_observations``. It is capped at the number of
+    tissues in the matrix (and floored at 2, the least for which Pearson r is
+    defined), so a deliberately tiny tissue selection is still analysable;
+    that case is not hidden, it is reported via ``min_observations_effective``.
     """
-    log_df = np.log2(df + 1)
-    corr = log_df.T.corr(method="pearson")
-    return corr.fillna(0.0)
+    m = settings.min_observations if min_obs is None else min_obs
+    return max(2, min(m, n_tissues)) if n_tissues >= 2 else 2
+
+
+def compute_coexpression(df: pd.DataFrame, min_obs: int | None = None) -> pd.DataFrame:
+    """
+    Pairwise-complete Pearson correlation between genes across tissues on
+    log2(TPM+1) values. Each pair uses only tissues where both genes were
+    observed. Pairs with fewer than the minimum shared observations are NaN
+    (not 0). A pair where either gene is constant over the shared tissues has
+    undefined r and is reported as 0.0 (no detectable co-variation), as before.
+    Returns square DataFrame (genes x genes).
+    """
+    m = effective_min_obs(df.shape[1], min_obs)
+    x = np.log2(df.astype(float) + 1).values
+    n = x.shape[0]
+    out = np.full((n, n), np.nan)
+    ok = ~np.isnan(x)
+    for i in range(n):
+        for j in range(i, n):
+            both = ok[i] & ok[j]
+            if both.sum() < m:
+                continue
+            a, b = x[i, both], x[j, both]
+            da, db = a - a.mean(), b - b.mean()
+            denom = np.sqrt((da @ da) * (db @ db))
+            r = 0.0 if denom < 1e-12 else float(np.clip((da @ db) / denom, -1.0, 1.0))
+            out[i, j] = out[j, i] = r
+    return pd.DataFrame(out, index=df.index, columns=df.index)
+
+
+def coverage_info(df: pd.DataFrame, min_obs: int | None = None) -> dict:
+    """Observed counts per gene / tissue, plus which genes could not be correlated."""
+    m = effective_min_obs(df.shape[1], min_obs)
+    gene_obs = df.notna().sum(axis=1)
+    tissue_obs = df.notna().sum(axis=0)
+    n_t, n_g = df.shape[1], df.shape[0]
+    return {
+        "min_observations": settings.min_observations if min_obs is None else min_obs,
+        "min_observations_effective": m,
+        "gene_coverage": {
+            g: {"n_observed": int(gene_obs[g]), "n_tissues": n_t,
+                "low_coverage": bool(gene_obs[g] < m)}
+            for g in df.index
+        },
+        "tissue_coverage": {
+            t: {"n_observed": int(tissue_obs[t]), "n_genes": n_g}
+            for t in df.columns
+        },
+        "genes_dropped_low_coverage": [g for g in df.index if gene_obs[g] < m],
+        "tissues_with_missing": [t for t in df.columns if tissue_obs[t] < n_g],
+    }
 
 
 def pathway_consistency_score(corr_matrix: pd.DataFrame) -> float:
@@ -42,6 +97,9 @@ def pathway_consistency_score(corr_matrix: pd.DataFrame) -> float:
     if n < 2:
         return float("nan")
     upper = corr_matrix.values[np.triu_indices(n, k=1)]
+    upper = upper[~np.isnan(upper)]  # pairs without enough data are excluded, not counted as 0
+    if upper.size == 0:
+        return float("nan")
     return float(np.mean(upper))
 
 
@@ -51,6 +109,8 @@ def top_correlated_pairs(corr_matrix: pd.DataFrame, n: int = 10) -> list[dict]:
     genes = list(corr_matrix.index)
     for i in range(len(genes)):
         for j in range(i + 1, len(genes)):
+            if np.isnan(corr_matrix.iloc[i, j]):
+                continue
             pairs.append(
                 {
                     "gene_a": genes[i],
@@ -65,11 +125,16 @@ def top_correlated_pairs(corr_matrix: pd.DataFrame, n: int = 10) -> list[dict]:
 def summary_stats(df: pd.DataFrame) -> dict[str, dict]:
     """
     Per-gene summary statistics across tissues.
-    Returns {gene: {mean_tpm, median_tpm, std_tpm, cv, max_tissue, max_tpm}}.
+    Statistics use observed tissues only. Returns
+    {gene: {mean_tpm, median_tpm, std_tpm, cv, max_tissue, max_tpm, n_observed}}.
     """
     result = {}
     for gene in df.index:
-        row = df.loc[gene]
+        row = df.loc[gene].dropna()
+        if row.empty:  # no observations at all
+            result[gene] = {"mean_tpm": None, "median_tpm": None, "std_tpm": None,
+                            "cv": None, "max_tissue": None, "max_tpm": None, "n_observed": 0}
+            continue
         mean_tpm = float(row.mean())
         std_tpm = float(row.std())
         if np.isnan(std_tpm):  # single tissue: sample std undefined
@@ -81,17 +146,30 @@ def summary_stats(df: pd.DataFrame) -> dict[str, dict]:
             "cv": round(std_tpm / (mean_tpm + 1e-6), 4),
             "max_tissue": str(row.idxmax()),
             "max_tpm": round(float(row.max()), 3),
+            "n_observed": int(len(row)),
         }
     return result
 
 
-def run_pca(df: pd.DataFrame) -> tuple[list[float], dict[str, list[float]]]:
+def pca_input(df: pd.DataFrame, min_obs: int | None = None) -> pd.DataFrame:
     """
-    PCA on log2(TPM+1) expression matrix (genes as observations, tissues as features).
+    PCA needs a complete matrix and must not see imputed values. Keep genes with
+    enough observations, then only tissues observed for all of those genes.
+    """
+    m = effective_min_obs(df.shape[1], min_obs)
+    sub = df.loc[df.notna().sum(axis=1) >= m]
+    return sub.loc[:, sub.notna().all(axis=0)]
+
+
+def run_pca(df: pd.DataFrame, min_obs: int | None = None) -> tuple[list[float], dict[str, list[float]]]:
+    """
+    PCA on log2(TPM+1) expression matrix (genes as observations, tissues as features),
+    restricted to the complete sub-matrix given by `pca_input`.
     Returns:
         variance_explained: list of explained variance ratios for up to 5 PCs
         coordinates: {gene: [PC1_score, PC2_score]}
     """
+    df = pca_input(df, min_obs)
     log_df = np.log2(df + 1)
     n_components = min(5, len(df), len(df.columns))
     if n_components < 2:
@@ -123,21 +201,38 @@ def run_full_analysis(expression_matrix: dict[str, dict[str, float]]) -> dict:
     df = build_dataframe(expression_matrix)
 
     corr_df = compute_coexpression(df)
-    logger.info("Pairwise Pearson correlations computed (%dx%d matrix)", len(corr_df), len(corr_df))
+    logger.info("Pairwise-complete Pearson correlations computed (%dx%d matrix)", len(corr_df), len(corr_df))
     consistency = pathway_consistency_score(corr_df)
     logger.info("Pathway consistency score: %.4f", consistency)
     top_pairs = top_correlated_pairs(corr_df)
     stats_dict = summary_stats(df)
     var_explained, pca_coords = run_pca(df)
+    cov = coverage_info(df)
+
+    n = len(corr_df)
+    upper = corr_df.values[np.triu_indices(n, k=1)]
+    pca_df = pca_input(df)
+    cov.update(
+        pairs_total=int(upper.size),
+        pairs_evaluated=int((~np.isnan(upper)).sum()),
+        pca_genes=list(pca_df.index),
+        pca_tissues_used=len(pca_df.columns),
+        pca_tissues_dropped=[t for t in df.columns if t not in pca_df.columns],
+    )
 
     return {
         "correlation_matrix": {
-            gene: {g2: round(float(v), 4) for g2, v in row.items()}
+            gene: {g2: (None if np.isnan(v) else round(float(v), 4)) for g2, v in row.items()}
             for gene, row in corr_df.to_dict().items()
         },
-        "pathway_consistency_score": round(consistency, 4),
+        # NaN only for <2 genes (legacy contract); None when >=2 genes but no pair
+        # has enough shared tissues. Callers must treat both as "no score".
+        "pathway_consistency_score": (
+            None if np.isnan(consistency) and n >= 2 else round(consistency, 4)
+        ),
         "top_correlated_pairs": top_pairs,
         "summary_stats": stats_dict,
         "pca_variance_explained": var_explained,
         "pca_coordinates": pca_coords,
+        "coverage": cov,
     }
