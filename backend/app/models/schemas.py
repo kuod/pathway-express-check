@@ -1,6 +1,8 @@
 from pydantic import BaseModel
 from typing import Optional
 
+from app.config import settings
+
 
 class PathwayInfo(BaseModel):
     name: str
@@ -11,7 +13,7 @@ class PathwayInfo(BaseModel):
 class ExpressionRequest(BaseModel):
     genes: list[str]
     pathway_name: str
-    dataset_id: str = "gtex_v8"
+    dataset_id: str = settings.gtex_dataset_id
     tissue_ids: Optional[list[str]] = None  # None = all tissues
 
 

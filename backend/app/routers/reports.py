@@ -5,12 +5,11 @@ Supports HTML (printable preprint), DOCX, and CSV/Excel data exports.
 
 import base64
 import io
+import re
 import zipfile
 from datetime import date
 
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -32,6 +31,12 @@ _JINJA_ENV = Environment(
 )
 
 
+def _safe_filename(name: str, suffix: str) -> str:
+    """Make *name* safe for a Content-Disposition header (no quotes, CR/LF, non-ASCII)."""
+    stem = re.sub(r"[^A-Za-z0-9._-]+", "_", name).strip("._") or "report"
+    return stem[:100] + suffix
+
+
 # ---------------------------------------------------------------------------
 # Figure helpers
 # ---------------------------------------------------------------------------
@@ -39,7 +44,8 @@ _JINJA_ENV = Environment(
 def _expression_heatmap_png(expression_matrix: dict, figsize=(14, 8)) -> bytes:
     df = build_dataframe(expression_matrix)
     log_df = np.log2(df + 1)
-    fig, ax = plt.subplots(figsize=figsize)
+    fig = Figure(figsize=figsize)
+    ax = fig.subplots()
     sns.heatmap(
         log_df,
         cmap="viridis",
@@ -51,18 +57,18 @@ def _expression_heatmap_png(expression_matrix: dict, figsize=(14, 8)) -> bytes:
     ax.set_title("Median Gene Expression Across GTEx Tissues")
     ax.set_xlabel("Tissue")
     ax.set_ylabel("Gene")
-    plt.xticks(rotation=90, fontsize=6)
-    plt.yticks(fontsize=7)
-    plt.tight_layout()
+    ax.tick_params(axis="x", labelrotation=90, labelsize=6)
+    ax.tick_params(axis="y", labelsize=7)
+    fig.tight_layout()
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=150)
-    plt.close(fig)
     return buf.getvalue()
 
 
 def _correlation_heatmap_png(correlation_matrix: dict, figsize=(10, 8)) -> bytes:
     corr_df = pd.DataFrame(correlation_matrix)
-    fig, ax = plt.subplots(figsize=figsize)
+    fig = Figure(figsize=figsize)
+    ax = fig.subplots()
     mask = np.triu(np.ones_like(corr_df, dtype=bool))
     sns.heatmap(
         corr_df,
@@ -78,12 +84,13 @@ def _correlation_heatmap_png(correlation_matrix: dict, figsize=(10, 8)) -> bytes
         yticklabels=True,
     )
     ax.set_title("Gene Co-expression Correlation Matrix")
-    plt.xticks(rotation=45, ha="right", fontsize=7)
-    plt.yticks(fontsize=7)
-    plt.tight_layout()
+    ax.tick_params(axis="x", labelrotation=45, labelsize=7)
+    for lbl in ax.get_xticklabels():
+        lbl.set_ha("right")
+    ax.tick_params(axis="y", labelsize=7)
+    fig.tight_layout()
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=150)
-    plt.close(fig)
     return buf.getvalue()
 
 
@@ -93,17 +100,17 @@ def _pca_scatter_png(pca_coords: dict, figsize=(7, 6)) -> bytes:
     genes = list(pca_coords.keys())
     xs = [pca_coords[g][0] for g in genes]
     ys = [pca_coords[g][1] for g in genes]
-    fig, ax = plt.subplots(figsize=figsize)
+    fig = Figure(figsize=figsize)
+    ax = fig.subplots()
     ax.scatter(xs, ys, s=60, alpha=0.8)
     for gene, x, y in zip(genes, xs, ys):
         ax.annotate(gene, (x, y), textcoords="offset points", xytext=(4, 4), fontsize=7)
     ax.set_xlabel("PC1")
     ax.set_ylabel("PC2")
     ax.set_title("PCA of Gene Expression Across Tissues")
-    plt.tight_layout()
+    fig.tight_layout()
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=150)
-    plt.close(fig)
     return buf.getvalue()
 
 
@@ -178,7 +185,7 @@ def generate_docx_report(req: ReportRequest):
         doc.add_paragraph(
             f"Median transcript per million (TPM) expression values were retrieved from the "
             f"{req.dataset_info} via the GTEx Portal REST API (gtexportal.org/api/v2). "
-            "Only protein-coding genes with versioned GENCODE v26 identifiers were included."
+            "Gene symbols were resolved to versioned GENCODE identifiers; genes without GTEx entries were excluded."
         )
         doc.add_heading("Co-expression Analysis", 2)
         doc.add_paragraph(
@@ -230,7 +237,7 @@ def generate_docx_report(req: ReportRequest):
     buf = io.BytesIO()
     doc.save(buf)
     buf.seek(0)
-    filename = req.pathway_name.replace(" ", "_") + "_coexpression_report.docx"
+    filename = _safe_filename(req.pathway_name, "_coexpression_report.docx")
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -273,7 +280,7 @@ def download_csv(req: ReportRequest):
         corr_df = pd.DataFrame(req.coexpression.correlation_matrix)
         corr_df.to_excel(writer, sheet_name="Correlation_Matrix")
     buf.seek(0)
-    filename = req.pathway_name.replace(" ", "_") + "_expression_data.xlsx"
+    filename = _safe_filename(req.pathway_name, "_expression_data.xlsx")
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

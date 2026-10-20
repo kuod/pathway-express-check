@@ -22,10 +22,19 @@ logger = logging.getLogger(__name__)
 _BASE = settings.gtex_api_base
 _TIMEOUT = settings.request_timeout
 _GENE_BATCH_SIZE = 20
+_ITEMS_PER_PAGE = 2000  # GTEx defaults to 250 rows/page; 20 genes x 54 tissues = 1080
 _RESOLVE_CONCURRENCY = 20  # cap simultaneous /reference/gene requests
 
 
-async def resolve_genes(symbols: list[str]) -> dict[str, str | None]:
+# GTEx dataset -> GENCODE annotation it was built on. Versioned ENSG ids differ
+# between releases, so an id resolved for one dataset returns no rows for another.
+GENCODE_VERSIONS: dict[str, str] = {"gtex_v8": "v26", "gtex_v10": "v39"}
+_CACHE_GENCODE_VERSION = "v26"  # the shipped disk cache is built from GENCODE v26
+
+
+async def resolve_genes(
+    symbols: list[str], dataset_id: str = "gtex_v8"
+) -> dict[str, str | None]:
     """
     Resolve gene symbols to versioned GTEx gencodeIds (ENSG....version).
     Returns {symbol: gencodeId_or_None}.
@@ -34,11 +43,13 @@ async def resolve_genes(symbols: list[str]) -> dict[str, str | None]:
     Checks the local disk cache first; only symbols not in cache hit the API.
     Successful API resolutions are written back to the cache.
     """
+    gencode_version = GENCODE_VERSIONS.get(dataset_id, _CACHE_GENCODE_VERSION)
+    use_cache = gencode_version == _CACHE_GENCODE_VERSION
     results: dict[str, str | None] = {}
     uncached: list[str] = []
 
     for sym in symbols:
-        cached = gene_cache.lookup(sym)
+        cached = gene_cache.lookup(sym) if use_cache else None
         if cached is not None:
             results[sym] = cached
         else:
@@ -59,7 +70,7 @@ async def resolve_genes(symbols: list[str]) -> dict[str, str | None]:
             try:
                 r = await client.get(
                     f"{_BASE}/reference/gene",
-                    params={"geneId": symbol, "gencodeVersion": "v26", "genomeBuild": "GRCh38/hg38"},
+                    params={"geneId": symbol, "gencodeVersion": gencode_version, "genomeBuild": "GRCh38/hg38"},
                     timeout=_TIMEOUT,
                 )
                 r.raise_for_status()
@@ -68,8 +79,8 @@ async def resolve_genes(symbols: list[str]) -> dict[str, str | None]:
                 if genes:
                     gid = genes[0].get("gencodeId")
                     results[symbol] = gid
-                    if gid:
-                        gene_cache.put(symbol, gid)  # write-back
+                    if gid and use_cache:
+                        gene_cache.put(symbol, gid)  # in-memory; flushed once below
                 else:
                     results[symbol] = None
             except Exception as exc:
@@ -79,6 +90,10 @@ async def resolve_genes(symbols: list[str]) -> dict[str, str | None]:
     logger.info("Resolving %d gene symbols via GTEx API…", len(uncached))
     async with httpx.AsyncClient() as client:
         await asyncio.gather(*[fetch_one(client, s) for s in uncached])
+
+    if use_cache:
+        # One batched, atomic write, off the event loop.
+        await asyncio.to_thread(gene_cache.flush)
 
     found = sum(1 for v in results.values() if v)
     logger.info("Gene resolution complete: %d/%d symbols matched", found, len(symbols))
@@ -96,25 +111,34 @@ async def fetch_median_expression(
       [{gencodeId, geneSymbol, tissueSiteDetailId, median, unit}, ...]
     """
     all_records: list[dict] = []
+    failures: list[Exception] = []
 
     async def fetch_batch(client: httpx.AsyncClient, batch: list[str]):
         params: dict = {
             "datasetId": dataset_id,
             "gencodeId": batch,  # list → httpx repeats the key: ?gencodeId=X&gencodeId=Y
+            "itemsPerPage": _ITEMS_PER_PAGE,
         }
         if tissue_ids:
-            params["tissueSiteDetailId"] = ",".join(tissue_ids)
+            params["tissueSiteDetailId"] = tissue_ids
         try:
-            r = await client.get(
-                f"{_BASE}/expression/medianGeneExpression",
-                params=params,
-                timeout=_TIMEOUT,
-            )
-            r.raise_for_status()
-            data = r.json()
-            all_records.extend(data.get("data", []))
+            page = 0
+            while True:
+                r = await client.get(
+                    f"{_BASE}/expression/medianGeneExpression",
+                    params={**params, "page": page},
+                    timeout=_TIMEOUT,
+                )
+                r.raise_for_status()
+                data = r.json()
+                all_records.extend(data.get("data", []))
+                n_pages = (data.get("paging_info") or {}).get("numberOfPages", 1)
+                page += 1
+                if page >= n_pages:
+                    break
         except Exception as exc:
             logger.warning("Expression batch fetch failed for %d IDs: %s", len(batch), exc)
+            failures.append(exc)
 
     batches = [
         gencode_ids[i : i + _GENE_BATCH_SIZE]
@@ -134,6 +158,13 @@ async def fetch_median_expression(
     async with httpx.AsyncClient() as client:
         await asyncio.gather(*[fetch_batch_logged(client, b, i) for i, b in enumerate(batches)])
 
+    if batches and len(failures) == len(batches):
+        # Every request failed: surface the cause instead of reporting "no data".
+        raise RuntimeError(f"all {len(batches)} expression requests failed: {failures[0]}")
+    if failures:
+        logger.warning(
+            "%d/%d expression batches failed; result is partial", len(failures), len(batches)
+        )
     return all_records
 
 
@@ -166,7 +197,7 @@ async def get_expression_matrix(
         genes_not_found: symbols that could not be resolved
     """
     # Step 1: resolve symbols to Ensembl IDs
-    id_map = await resolve_genes(symbols)
+    id_map = await resolve_genes(symbols, dataset_id)
     found_map = {sym: gid for sym, gid in id_map.items() if gid}
     genes_not_found = [sym for sym, gid in id_map.items() if not gid]
 

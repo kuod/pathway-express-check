@@ -26,6 +26,17 @@ export function useAnalysis() {
 
   const [logLines, setLogLines] = useState<LogLine[]>([]);
   const timerRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // Identifies the latest analysis run. Anything that changes what the results
+  // would describe (pathway, library, dataset) bumps it and aborts the in-flight
+  // request, so a late response can never overwrite state for a different input.
+  const runIdRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
+
+  function invalidateRun() {
+    runIdRef.current += 1;
+    abortRef.current?.abort();
+    abortRef.current = null;
+  }
 
   function clearTimers() {
     timerRefs.current.forEach(clearTimeout);
@@ -37,15 +48,18 @@ export function useAnalysis() {
   }
 
   const mutation = useMutation({
-    mutationFn: () => {
+    mutationFn: (run: { runId: number; signal: AbortSignal }) => {
       if (!state.selectedPathway) throw new Error("No pathway selected");
       return runAnalysis(
         state.selectedPathway.genes,
         state.selectedPathway.name,
-        state.datasetId
+        state.datasetId,
+        undefined,
+        run.signal
       );
     },
-    onSuccess: (data) => {
+    onSuccess: (data, run) => {
+      if (run.runId !== runIdRef.current) return; // stale: inputs changed meanwhile
       clearTimers();
       const found = data.expression.genes_found.length;
       const total = found + data.expression.genes_not_found.length;
@@ -80,7 +94,8 @@ export function useAnalysis() {
         `Analysis complete — ${found} genes analyzed across ${tissues} tissues.`
       );
     },
-    onError: (err: unknown) => {
+    onError: (err: unknown, run) => {
+      if (run.runId !== runIdRef.current) return; // stale or aborted on purpose
       clearTimers();
       const detail =
         (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
@@ -132,15 +147,27 @@ export function useAnalysis() {
   return {
     ...state,
     logLines,
-    setLibrary: (lib: string) =>
-      setState((s) => ({ ...s, selectedLibrary: lib, selectedPathway: null, result: null })),
-    setPathway: (p: PathwayDetail | null) =>
-      setState((s) => ({ ...s, selectedPathway: p, result: null })),
-    setDatasetId: (id: string) => setState((s) => ({ ...s, datasetId: id })),
+    setLibrary: (lib: string) => {
+      invalidateRun();
+      setState((s) => ({ ...s, selectedLibrary: lib, selectedPathway: null, result: null }));
+    },
+    setPathway: (p: PathwayDetail | null) => {
+      invalidateRun();
+      setState((s) => ({ ...s, selectedPathway: p, result: null }));
+    },
+    // Results belong to the dataset they were computed on; drop them on change so
+    // they cannot be viewed or exported under the wrong dataset label.
+    setDatasetId: (id: string) => {
+      invalidateRun();
+      setState((s) => ({ ...s, datasetId: id, result: null }));
+    },
     runAnalysis: () => {
+      invalidateRun();
+      const controller = new AbortController();
+      abortRef.current = controller;
       setLogLines([]);
       clearTimers();
-      mutation.mutate();
+      mutation.mutate({ runId: runIdRef.current, signal: controller.signal });
     },
     isAnalyzing: mutation.isPending,
     download: (fmt: "html" | "docx" | "figures" | "csv") => downloadMutation.mutate(fmt),

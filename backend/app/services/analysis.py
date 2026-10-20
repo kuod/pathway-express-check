@@ -72,6 +72,8 @@ def summary_stats(df: pd.DataFrame) -> dict[str, dict]:
         row = df.loc[gene]
         mean_tpm = float(row.mean())
         std_tpm = float(row.std())
+        if np.isnan(std_tpm):  # single tissue: sample std undefined
+            std_tpm = 0.0
         result[gene] = {
             "mean_tpm": round(mean_tpm, 3),
             "median_tpm": round(float(row.median()), 3),

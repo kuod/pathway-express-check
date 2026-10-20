@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import { useQuery } from "@tanstack/react-query";
 import { fetchLibraries, searchPathways, fetchPathway } from "@/api/client";
 import type { PathwayDetail } from "@/types";
@@ -11,6 +12,13 @@ interface Props {
 
 export function PathwaySearch({ selectedLibrary, onLibraryChange, onPathwaySelect }: Props) {
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+
+  // Avoid one backend request per keystroke.
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedQuery(query), 300);
+    return () => clearTimeout(id);
+  }, [query]);
 
   const { data: libraries = [], isLoading: loadingLibs } = useQuery({
     queryKey: ["libraries"],
@@ -18,14 +26,18 @@ export function PathwaySearch({ selectedLibrary, onLibraryChange, onPathwaySelec
   });
 
   const { data: pathways = [], isLoading: loadingPathways } = useQuery({
-    queryKey: ["pathways", selectedLibrary, query],
-    queryFn: () => searchPathways(selectedLibrary, query, 100),
+    queryKey: ["pathways", selectedLibrary, debouncedQuery],
+    queryFn: () => searchPathways(selectedLibrary, debouncedQuery, 100),
     enabled: !!selectedLibrary,
   });
 
   async function handleSelect(name: string) {
-    const detail = await fetchPathway(selectedLibrary, name);
-    onPathwaySelect(detail);
+    try {
+      const detail = await fetchPathway(selectedLibrary, name);
+      onPathwaySelect(detail);
+    } catch (err) {
+      toast.error(`Could not load pathway: ${(err as Error).message}`);
+    }
   }
 
   return (

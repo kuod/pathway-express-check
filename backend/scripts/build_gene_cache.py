@@ -71,6 +71,11 @@ def build() -> None:
                     skipped += 1
                     continue
                 gencode_id = gid_m.group(1)   # e.g. ENSG00000227232.5
+                if gencode_id.endswith("_PAR_Y"):
+                    # chrY pseudo-autosomal copy shares the symbol with the chrX/autosomal
+                    # gene; GTEx serves the non-PAR_Y id, so don't let it overwrite it.
+                    skipped += 1
+                    continue
                 symbol = sym_m.group(1).upper()  # e.g. WASH7P
                 cache[symbol] = gencode_id
     except Exception as exc:

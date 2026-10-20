@@ -8,11 +8,15 @@ Select a pathway, retrieve median mRNA expression across GTEx tissues, and explo
 
 ## Example Output
 
+*Illustrative example — values are representative of the output format, not a reproducible benchmark.*
+
 **Pathway:** `KEGG_GLYCOLYSIS_GLUCONEOGENESIS` · **Dataset:** GTEx v8 · **Genes:** 7 core enzymes
 
 **Pathway consistency score: 0.71** — mean pairwise Pearson r across 54 GTEx tissues on log₂(TPM+1) values.
 
 ### Per-gene summary statistics
+
+The app reports mean/median TPM, SD, CV, and the max-expressing tissue per gene; the table below is a condensed illustration (the min-tissue column is not computed by the app).
 
 | Gene | Median log₂(TPM+1) | SD | Min tissue | Max tissue |
 |------|--------------------|----|------------|------------|
@@ -60,7 +64,7 @@ pathway-express-check/
 │   │   ├── main.py              # FastAPI app + lifespan hook
 │   │   ├── config.py
 │   │   ├── data/
-│   │   │   └── gtex_gene_cache.json   # pre-populated from GENCODE v26 (56 K genes)
+│   │   │   └── gtex_gene_cache.json   # shipped subset of GENCODE v26 symbols (rebuild for all ~56 K)
 │   │   ├── routers/             # pathways, expression, reports
 │   │   ├── services/
 │   │   │   ├── msigdb.py        # gseapy wrapper (LRU-cached)
@@ -119,7 +123,7 @@ The Vite dev server proxies `/api/*` to `localhost:8000`.
 
 ## Gene Cache
 
-Gene symbol → versioned GENCODE ID mappings are cached to disk at `backend/app/data/gtex_gene_cache.json`, eliminating redundant GTEx API calls on repeated analyses. The cache ships pre-populated from GENCODE v26 (~56 K genes). To rebuild it:
+Gene symbol → versioned GENCODE ID mappings are cached to disk at `backend/app/data/gtex_gene_cache.json`, eliminating redundant GTEx API calls on repeated analyses. The cache ships with a small subset (~800 symbols); unknown symbols are resolved live and written back. To populate it with all ~56 K GENCODE v26 symbols (GTEx v8 only; GTEx v10 uses GENCODE v39 and bypasses the cache):
 
 ```bash
 cd backend
@@ -145,5 +149,8 @@ Large gene sets (>100 genes) may take 20–40 s on first analysis while expressi
 
 ```bash
 cd backend
+pip install -r requirements-dev.txt
 pytest tests/ -v
 ```
+
+Frontend checks: `cd frontend && npm run lint && npm run build`.
